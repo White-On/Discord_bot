@@ -1,10 +1,5 @@
 import discord
-
-from discord.utils import sleep_until, utcnow
-from dotenv import load_dotenv
 import os
-from discord import app_commands, Poll, PollMedia, Emoji
-from discord.ext import commands, tasks
 import random
 
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -16,7 +11,10 @@ from langchain_core.tools import tool
 from langgraph.prebuilt import ToolNode, create_react_agent
 from datetime import datetime, timedelta
 from langchain_tavily import TavilySearch
-
+from discord.utils import sleep_until, utcnow
+from dotenv import load_dotenv
+from discord import app_commands, Poll, PollMedia, Emoji
+from discord.ext import commands, tasks
 
 
 # https://discord.com/developers/applications/1319294811471085662/information
@@ -26,7 +24,7 @@ from langchain_tavily import TavilySearch
 # https://discordpy.readthedocs.io/en/latest/ext/tasks/
 # https://discordpy.readthedocs.io/en/latest/ext/commands/commands.html
 
-preparation_sentence_list = [
+enticipation_sentence_list = [
     "## Attention, mesdames et messieurs, préparez-vous à accueillir… un(e) grand(e) gagnant(e) ! Le suspense est insoutenable…",
     "## Le sort a parlé ! Mais qui est l’élu(e) de cette grande cérémonie de… hasard total ?",
     "## Roulement de tambour... 🥁 Et la personne choisie est…",
@@ -34,14 +32,12 @@ preparation_sentence_list = [
     "## C’est parti pour l’annonce ! Est-ce que ça sera toi ? Ou toi ? Non, c’est…",
 ]
 selection_sentence_list = [
-    "## **Bravo à [NOM], tu viens d’être choisi(e) 🎯 !** On espère que tu es prêt(e) à relever le défi !",
-    "## Et c’est [NOM] qui l’emporte cette fois-ci ! Applaudissements pour cette performance de pure chance ! 👏",
-    "## **Félicitations à [NOM] !** Comme on dit, la roue tourne… 🛞 et elle vient de s’arrêter sur toi !",
-    "## Wow, [NOM], tu es l’heureux(se) élu(e) ! Va jouer au loto 🎰 aujourd’hui, c’est ton jour de chance !",
-    "## **Attention, attention… [NOM] vient de gagner la couronne 👑!** Oui, c’est toi ! 🎉",
+    "## **Bravo à {nom}, tu viens d’être choisi(e) 🎯 !** On espère que tu es prêt(e) à relever le défi !",
+    "## Et c’est {nom} qui l’emporte cette fois-ci ! Applaudissements pour cette performance de pure chance ! 👏",
+    "## **Félicitations à {nom} !** Comme on dit, la roue tourne… 🛞 et elle vient de s’arrêter sur toi !",
+    "## Wow, {nom}, tu es l’heureux(se) élu(e) ! Va jouer au loto 🎰 aujourd’hui, c’est ton jour de chance !",
+    "## **Attention, attention… {nom} vient de gagner la couronne 👑!** Oui, c’est toi ! 🎉",
 ]
-
-
 
 # get TOKEN
 load_dotenv()
@@ -65,6 +61,7 @@ llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash")
 # include_domains (optional, List[str]): List of domains to specifically include. Default is None.
 # exclude_domains (optional, List[str]): List of domains to specifically exclude. Default is None.
 
+# Tavily search tool is used for text-based search on the web for the movie night
 tavily_search_tool  = TavilySearch(
     max_results=5,
     topic="general",
@@ -81,6 +78,9 @@ tavily_search_tool  = TavilySearch(
 
 @bot.event
 async def on_ready():
+    """
+    Called when the bot is ready.
+    """
     print(f"Logged on as {bot.user}!")
 
     try:
@@ -92,10 +92,16 @@ async def on_ready():
     # goes with tasks
     # slow_count.start()
 
+# @tasks.loop(seconds=5.0, count=5)
+# async def slow_count():
+#     print(slow_count.current_loop)
 
-# Message lisen
+
 # @bot.event
 # async def on_message(message):
+#    """
+#    Called when a message is received.
+#    """
 #   if message.author == bot.user:
 #     return
 #   print(f'Message from {message.author}: {message.content}')
@@ -116,16 +122,47 @@ def check_if_user_exist(user_id: int, all_user: list) -> bool:
             return True
     return False
 
+def prochain_mercredi(date_reference: datetime = None) -> datetime:
+    """
+    Retourne la date du prochain mercredi à 21h15 à partir de la date de référence donnée.
+    Si aucune date de référence n'est fournie, utilise la date actuelle.
+    
+    :param date_reference: Une date de référence optionnelle (datetime).
+    :return: Un objet datetime représentant le prochain mercredi à 21h15.
+    """
+    date_reference = date_reference if date_reference else datetime.today()
+    
+    # Calcul des jours à ajouter pour atteindre mercredi (mercredi = 2)
+    jours_a_ajouter = (2 - date_reference.weekday()) % 7 or 7  # Assure le mercredi suivant
+    
+    return datetime.combine(date_reference.date() + timedelta(days=jours_a_ajouter), datetime.min.time().replace(hour=21, minute=15))
+
+def discord_timestamps(date: datetime, format: str = 'f') -> str:
+    """
+    Génère un timestamp Discord à partir d'une date.
+    
+    :param date: Un objet datetime
+    :param format: Format du timestamp Discord ('F', 'f', 'D', 'd', 'T', 't', 'R')
+    :return: Une chaîne de caractères compatible avec Discord
+    """
+    accepted_formats = {'F', 'f', 'D', 'd', 'T', 't', 'R'}
+    
+    if format not in accepted_formats:
+        raise ValueError(f"Format non pris en charge. Formats acceptés : {', '.join(accepted_formats)}")
+    
+    timestamp = int(date.timestamp())  # Convertir en timestamp Unix
+    return f'<t:{timestamp}:{format}>'
+
 
 @bot.tree.command(name="random_choice_user")
 @app_commands.describe(
-    all_mentions="Liste des roles et utilisateur (e.g., @Role1 @Role2 @User1 ...). séparé d'un espace. **Carefull, @everyone and @here not supported**"
+    all_mentions="Liste des roles et utilisateur (e.g., @Role1 @Role2 @User1 ...). séparé d'un espace. **Attention, @everyone et @here pas supporté**"
 )
 @app_commands.describe(
     show_message="Affiche le message pour tous le monde (par défaut, le message ne sera visible que pour vous)"
 )
 async def random_choice_user(
-    interaction: discord.Interaction, all_mentions: str, show_message: bool = False
+    interaction: discord.Interaction, all_mentions: str, show_message: bool = True
 ):
     # Split roles mentions into a list of role strings
     all_mentions = all_mentions.split()
@@ -173,7 +210,7 @@ async def random_choice_user(
     # Select a random member from the role
     selected_member = random.choice(list(set(selected_members)))
 
-    random_preparation_sentence = random.choice(preparation_sentence_list)
+    random_preparation_sentence = random.choice(enticipation_sentence_list)
     await publish_discord_message(
         random_preparation_sentence, interaction, show_message=show_message
     )
@@ -184,7 +221,7 @@ async def random_choice_user(
 
     # Send a response with all selected members
     await publish_discord_message(
-        random_selection_sentence.replace("[NOM]", f"<@{selected_member}>", 1),
+        random_selection_sentence.format(nom=f"<@{selected_member}>"),
         interaction,
         show_message = show_message,
     )
@@ -196,7 +233,7 @@ async def random_choice_user(
     show_message="Affiche le message pour tous le monde (par défaut, le message ne sera visible que pour vous)"
 )
 async def poll_decision(
-    interaction: discord.Interaction, poll_message_id: str, show_message: bool = False
+    interaction: discord.Interaction, poll_message_id: str, show_message: bool = True
 ):
 
     # Get the poll message
@@ -295,41 +332,6 @@ async def interract_with_chatbot(
     )
 
 
-# @bot.tree.command(name="create_poll")
-# @app_commands.describe(
-#     question="La question du sondage",
-#     answers="Les choix de réponse, séparés par un espace",
-#     duration="Durée du sondage en heure (optionnel, par défaut 24 heures)",
-#     answers_emoji="Les emojies liée a chaque choix de réponses",
-#     multiple="Plusieurs réponses acceptés"
-# )
-# async def create_poll(
-#     interaction: discord.Interaction,
-#     question: str,
-#     answers: str,
-#     duration: int = 24,
-#     answers_emoji: str = None,
-#     multiple: bool =True,
-# ):
-#     """
-#     Commande pour créer un sondage avec réactions.
-#     """
-#     answers = answers.split('|')
-#     answers_emoji = answers_emoji.split()
-#     if len(answers) < 2:
-#         await publish_discord_message(
-#             "Merci d'ajouter au moins deux choix pour le sondage !", interaction, show_message=True
-#         )
-#         return None
-    
-#     poll = Poll(question,datetime.timedelta(hours=duration),multiple=multiple)
-
-#     for answer, emoji in zip(answers, answers_emoji):
-#         print(f'Answers :{answer},{emoji}')
-#         poll.add_answer(text=answer, emoji=emoji)
-    
-#     await publish_discord_message(poll=poll)
-
 @tool
 async def publish_poll(
     question: str,
@@ -367,36 +369,6 @@ async def publish_poll(
 class State(AgentState):
     interaction: discord.Interaction
 
-def prochain_mercredi(date_reference: datetime = None) -> datetime:
-    """
-    Retourne la date du prochain mercredi à 21h15 à partir de la date de référence donnée.
-    Si aucune date de référence n'est fournie, utilise la date actuelle.
-    
-    :param date_reference: Une date de référence optionnelle (datetime).
-    :return: Un objet datetime représentant le prochain mercredi à 21h15.
-    """
-    date_reference = date_reference if date_reference else datetime.today()
-    
-    # Calcul des jours à ajouter pour atteindre mercredi (mercredi = 2)
-    jours_a_ajouter = (2 - date_reference.weekday()) % 7 or 7  # Assure le mercredi suivant
-    
-    return datetime.combine(date_reference.date() + timedelta(days=jours_a_ajouter), datetime.min.time().replace(hour=21, minute=15))
-
-def discord_timestamps(date: datetime, format: str = 'f') -> str:
-    """
-    Génère un timestamp Discord à partir d'une date.
-    
-    :param date: Un objet datetime
-    :param format: Format du timestamp Discord ('F', 'f', 'D', 'd', 'T', 't', 'R')
-    :return: Une chaîne de caractères compatible avec Discord
-    """
-    accepted_formats = {'F', 'f', 'D', 'd', 'T', 't', 'R'}
-    
-    if format not in accepted_formats:
-        raise ValueError(f"Format non pris en charge. Formats acceptés : {', '.join(accepted_formats)}")
-    
-    timestamp = int(date.timestamp())  # Convertir en timestamp Unix
-    return f'<t:{timestamp}:{format}>'
 
 @tool
 async def publish_discord_message_tool(message: str, state: Annotated[dict, InjectedState], show_message: bool = True):
@@ -451,15 +423,15 @@ async def create_poll(
     movie_night_role_id = 777544183736565801
 
 
-    movie_night_prompt = f"Crée un sondage engageant pour une soirée film en utilisant les outils à ta disposition.\
-    Rédige une question courte et conviviale, comme : 'On regarde quoi pour la soirée film ? :)' ou une formulation similaire.\
-    Utilise une liste de titres de films séparés par des barres verticales '|' pour les choix de réponse.\
-    La liste des films est la suivante : '{movies_list}'.\
-    Une fois le sondage publié, effectue une recherche sur internet avec Tavily pour obtenir un synopsis idéalement en français de chaque film présent dans le sondage.\
-    Publie ensuite un message sur discord en utilisant les sondage récupéré en suivant ce modèle : ## <Nom du film> :\n ||<synopsis du film>||\
-    Et enfin, termine en publiant sur discord le message final suivant :'## Hey <@&{movie_night_role_id}> ! N'oubliez pas de voter pour le film de la \
-    watchparty ! La soirée film aura lieu {discord_timestamps(prochain_mercredi())} ({discord_timestamps(prochain_mercredi(), format='R')}).'\
-    Ne publie ce message qu’après avoir posté les synopsis. Suis cet ordre strictement et n’invente pas de date ou d’informations supplémentaires."
+    movie_night_prompt = f"""Crée un sondage engageant pour une soirée film en utilisant les outils à ta disposition.
+    Rédige une question courte et conviviale, comme : 'On regarde quoi pour la soirée film ? :)' ou une formulation similaire.
+    Utilise une liste de titres de films séparés par des barres verticales '|' pour les choix de réponse.
+    La liste des films est la suivante : '{movies_list}'.
+    Une fois le sondage publié, effectue une recherche sur internet avec Tavily pour obtenir un synopsis idéalement en français de chaque film présent dans le sondage.
+    Publie ensuite un message sur discord en utilisant les sondage récupéré en suivant ce modèle : ## <Nom du film> :\n ||<synopsis du film>||
+    Et enfin, termine en publiant sur discord le message final suivant :'## Hey <@&{movie_night_role_id}> ! N'oubliez pas de voter pour le film de la 
+    watchparty ! La soirée film aura lieu {discord_timestamps(prochain_mercredi())} ({discord_timestamps(prochain_mercredi(), format='R')}).'
+    Ne publie ce message qu’après avoir posté les synopsis. Suis cet ordre strictement et n’invente pas de date ou d’informations supplémentaires."""
 
 
     tools = [publish_poll,publish_discord_message_tool, tavily_search_tool]
@@ -477,9 +449,6 @@ async def create_poll(
     for msg in respond:
         msg.pretty_print()
 
-# @tasks.loop(seconds=5.0, count=5)
-# async def slow_count():
-#     print(slow_count.current_loop)
 
 
 bot.run(discord_token)
