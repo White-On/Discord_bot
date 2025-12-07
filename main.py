@@ -5,7 +5,7 @@ import requests
 from datetime import datetime, timedelta
 
 from dotenv import load_dotenv
-from discord import app_commands, Poll, PollMedia, Emoji, Embed
+from discord import app_commands, Poll, Embed
 from discord.utils import sleep_until, utcnow
 from discord.ext import commands
 from rich.console import Console
@@ -26,6 +26,8 @@ selection_sentence_list = [
     "## Wow, {nom}, tu es l’heureux(se) élu(e) ! Va jouer au loto 🎰 aujourd’hui, c’est ton jour de chance !",
     "## **Attention, attention… {nom} vient de gagner la couronne 👑!** Oui, c’est toi ! 🎉",
 ]
+
+# TODO: Reorganize functions in different files + clean backup if API calls are not working anymore
 
 load_dotenv()
 bot = commands.Bot(command_prefix="/", intents=discord.Intents.all())
@@ -64,10 +66,14 @@ def prepare_message(title_details: dict):
         console.print(f"Error retrieving details for the movie: {title_details['error']}")
         return title_details["error"]
     
+    genres = title_details.get('genres', [])
+    genres = [genre if genre!="Horror" else "**Horror(Careful for those who are easily scared!)**" for genre in genres]
+
+    
     message = f"## {title_details.get('primaryTitle')}\n"
     message += f"Plot: ||**{title_details.get('plot')}**||\n"
     message += f"Rating: **{title_details.get('rating').get('aggregateRating')}** (This is the IMDB rating, above *7* is usually good)\n"
-    message += f"Genres: {', '.join(title_details.get('genres', []))}\n"
+    message += f"Genres: {', '.join(genres)}\n"
     # message += f"{title_details.get('primaryImage').get('url')}/\n"
     
     # embed = Embed(title=title_details.get('primaryTitle'), description=title_details.get('plot'))
