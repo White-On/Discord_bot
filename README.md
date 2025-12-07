@@ -53,7 +53,7 @@ Le bot se connectera automatiquement à Discord et synchronisera ses commandes s
 
 - `/random_selector` : Sélectionne aléatoirement un membre ou des membres d'un rôle
 - `/poll_decision` : Analyse les résultats d'un sondage terminé
-- `/movie_night` : Organise une soirée film avec sondage et synopsis automatiques
+- `/movie_night` : Organise une soirée film avec sondage et synopsis automatiques (les films doivent être séparés par des `|`)
 
 ## Développement
 
