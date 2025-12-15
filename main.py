@@ -22,7 +22,7 @@ from src.utils import (
     discord_timestamps,
     publish_discord_message,
 )
-from src.imdb import first_result_title_details, prepare_message
+from src.imdb import first_result_title_details, prepare_message, test_imdb_api
 
 console = Console()
 
@@ -73,9 +73,11 @@ async def random_choice_user(
 
         for mention in all_mentions:
             if mention == "@everyone" or mention == "@here":
-                console.print(f"[yellow]⚠[/yellow] Mention '{mention}' not supported, skipping...")
+                console.print(
+                    f"[yellow]⚠[/yellow] Mention '{mention}' not supported, skipping..."
+                )
                 continue
-            
+
             try:
                 if not mention.startswith("<@&"):
                     # then it's a user mention
@@ -83,11 +85,15 @@ async def random_choice_user(
                     if check_if_user_exist(user_id, interaction.guild.members):
                         selected_members.append(user_id)
                     else:
-                        console.print(f"[yellow]⚠[/yellow] User {mention} not found in server")
+                        console.print(
+                            f"[yellow]⚠[/yellow] User {mention} not found in server"
+                        )
                 else:
                     role_mentions.append(mention)
             except Exception as e:
-                console.print(f"[yellow]⚠[/yellow] Error processing mention {mention}: {e}")
+                console.print(
+                    f"[yellow]⚠[/yellow] Error processing mention {mention}: {e}"
+                )
                 continue
 
         # Process role mentions
@@ -106,7 +112,9 @@ async def random_choice_user(
 
                 # Get all members with this role
                 members_in_role = [
-                    member.id for member in interaction.guild.members if role in member.roles
+                    member.id
+                    for member in interaction.guild.members
+                    if role in member.roles
                 ]
                 if not members_in_role:
                     console.print(
@@ -118,7 +126,7 @@ async def random_choice_user(
                         show_message=True,
                     )
                     continue
-                
+
                 selected_members += members_in_role
             except Exception as e:
                 console.print(f"[red]✗ Error processing role {role_mention}:[/red] {e}")
@@ -159,9 +167,11 @@ async def random_choice_user(
         console.print(f"[green]✓[/green] Random user selected: {selected_member}")
 
     except Exception as e:
-        console.print(f"[red]✗ Error in random_choice_user command:[/red] {e}", style="bold red")
+        console.print(
+            f"[red]✗ Error in random_choice_user command:[/red] {e}", style="bold red"
+        )
         await publish_discord_message(
-            f"[red]✗ Une erreur est survenue lors de la sélection aléatoire[/red]",
+            "[red]✗ Une erreur est survenue lors de la sélection aléatoire[/red]",
             interaction,
             show_message=show_message,
         )
@@ -257,9 +267,11 @@ async def poll_decision(
         )
 
     except Exception as e:
-        console.print(f"[red]✗ Error in poll_decision command:[/red] {e}", style="bold red")
+        console.print(
+            f"[red]✗ Error in poll_decision command:[/red] {e}", style="bold red"
+        )
         await publish_discord_message(
-            f"[red]✗ Une erreur est survenue lors du traitement du sondage[/red]",
+            "[red]✗ Une erreur est survenue lors du traitement du sondage[/red]",
             interaction,
             show_message=show_message,
         )
@@ -296,10 +308,14 @@ async def create_poll(
             )
             return
 
-        console.print(f"[green]✓[/green] Time until next wednesday: {time_until_next_wenesday}")
+        console.print(
+            f"[green]✓[/green] Time until next wednesday: {time_until_next_wenesday}"
+        )
 
-        list_movies = [movie.strip() for movie in movies_list.split("|") if movie.strip()]
-        
+        list_movies = [
+            movie.strip() for movie in movies_list.split("|") if movie.strip()
+        ]
+
         if not list_movies:
             await publish_discord_message(
                 "[red]✗ Erreur:[/red] Aucun film valide fourni.",
@@ -322,21 +338,40 @@ async def create_poll(
         await interaction.response.send_message(poll=poll, silent=False)
         console.print(f"[green]✓[/green] Poll created with {len(list_movies)} movies")
 
-        with console.status("[cyan]Getting movie infos..."):
-            for movie in list_movies:
-                try:
-                    console.print(f"[cyan]→[/cyan] Getting info for movie: {movie}")
-                    info = await first_result_title_details(movie)  # ← Ajouter await
-                    
-                    if not info or "error" in info:
-                        console.print(f"[yellow]⚠[/yellow] No info found for movie: {movie}")
-                        continue
-                    
-                    message, embed = prepare_message(info)
-                    if message and embed:
-                        await interaction.followup.send(message, embed=embed, ephemeral=False)
-                except Exception as e:
-                    console.print(f"[yellow]⚠[/yellow] Error getting info for {movie}: {e}")
+        # Verify IMDB API availability before fetching details
+        api_ok, api_error = await test_imdb_api()
+        if not api_ok:
+            console.print(f"[red]✗[/red] IMDB API test failed: {api_error}")
+            await publish_discord_message(
+                f"Impossible de récupérer les informations des films car l'API IMDB n'est pas joignable : {api_error}",
+                interaction,
+                show_message=True,
+            )
+        else:
+            console.print("[green]✓[/green] IMDB API is reachable")
+            with console.status("[cyan]Getting movie infos..."):
+                for movie in list_movies:
+                    try:
+                        console.print(f"[cyan]→[/cyan] Getting info for movie: {movie}")
+                        info = await first_result_title_details(
+                            movie
+                        )  # ← Ajouter await
+
+                        if not info or "error" in info:
+                            console.print(
+                                f"[yellow]⚠[/yellow] No info found for movie: {movie}"
+                            )
+                            continue
+
+                        message, embed = prepare_message(info)
+                        if message and embed:
+                            await interaction.followup.send(
+                                message, embed=embed, ephemeral=False
+                            )
+                    except Exception as e:
+                        console.print(
+                            f"[yellow]⚠[/yellow] Error getting info for {movie}: {e}"
+                        )
                     continue
 
         # Check if MOVIE_NIGHT_ROLE_ID is set
@@ -354,14 +389,16 @@ async def create_poll(
             interaction,
             show_message=True,
         )
-        
-        console.print(f"[green]✓[/green] Movie night poll created successfully")
+
+        console.print("[green]✓[/green] Movie night poll created successfully")
         return True
 
     except Exception as e:
-        console.print(f"[red]✗ Error in create_poll command:[/red] {e}", style="bold red")
+        console.print(
+            f"[red]✗ Error in create_poll command:[/red] {e}", style="bold red"
+        )
         await publish_discord_message(
-            f"[red]✗ Une erreur est survenue lors de la création du sondage de film[/red]",
+            "[red]✗ Une erreur est survenue lors de la création du sondage de film[/red]",
             interaction,
             show_message=True,
         )
@@ -373,7 +410,6 @@ async def on_error(event, *args, **kwargs):
     """
     Global error handler for bot events
     """
-    import traceback
     console.print("[red]✗ Global error handler triggered[/red]")
     console.print_exception()
 

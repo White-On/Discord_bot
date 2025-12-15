@@ -45,10 +45,14 @@ async def _make_request_with_retry(
                     await asyncio.sleep(wait_time)  # Non-blocking sleep
                     continue
                 else:
-                    console.print(f"[red]✗ API rate limit exceeded after {max_retries} retries[/red]")
+                    console.print(
+                        f"[red]✗ API rate limit exceeded after {max_retries} retries[/red]"
+                    )
                     return {"error": "API rate limit exceeded after multiple retries"}
             else:
-                console.print(f"[red]✗ API request failed with status code {response.status_code}[/red]")
+                console.print(
+                    f"[red]✗ API request failed with status code {response.status_code}[/red]"
+                )
                 return {
                     "error": f"Request failed with status code {response.status_code}"
                 }
@@ -62,7 +66,9 @@ async def _make_request_with_retry(
                 await asyncio.sleep(wait_time)  # Non-blocking sleep
                 continue
             else:
-                console.print(f"[red]✗ Request timeout after {max_retries} retries[/red]")
+                console.print(
+                    f"[red]✗ Request timeout after {max_retries} retries[/red]"
+                )
                 return {"error": "Request timeout after multiple retries"}
 
         except requests.exceptions.RequestException as e:
@@ -74,7 +80,9 @@ async def _make_request_with_retry(
                 await asyncio.sleep(wait_time)  # Non-blocking sleep
                 continue
             else:
-                console.print(f"[red]✗ Request failed after {max_retries} retries: {str(e)}[/red]")
+                console.print(
+                    f"[red]✗ Request failed after {max_retries} retries: {str(e)}[/red]"
+                )
                 return {"error": f"Request failed: {str(e)}"}
 
     return {"error": "All retry attempts failed"}
@@ -121,21 +129,47 @@ def prepare_message(title_details: dict):
 
         message = f"## {title_details.get('primaryTitle', 'Unknown')}\n"
         message += f"Plot: ||*{title_details.get('plot', 'N/A')}*||\n"
-        
-        rating = title_details.get('rating', {})
-        agg_rating = rating.get('aggregateRating', 'N/A') if isinstance(rating, dict) else 'N/A'
+
+        rating = title_details.get("rating", {})
+        agg_rating = (
+            rating.get("aggregateRating", "N/A") if isinstance(rating, dict) else "N/A"
+        )
         message += f"Rating: **{agg_rating}** (IMDB rating, >7 is usually good)\n"
         message += f"Genres: {', '.join(genres) if genres else 'N/A'}\n"
 
         embed = Embed()
         primary_image = title_details.get("primaryImage")
         if primary_image:
-            image_url = primary_image.get("url") if isinstance(primary_image, dict) else primary_image
+            image_url = (
+                primary_image.get("url")
+                if isinstance(primary_image, dict)
+                else primary_image
+            )
             if image_url:
                 embed.set_image(url=image_url)
 
         return message, embed
-    
+
     except Exception as e:
         console.print(f"[red]✗ Error preparing message:[/red] {e}")
         return None, None
+
+
+async def test_imdb_api() -> tuple[bool, str | None]:
+    """Test if the IMDB API search endpoint is reachable.
+
+    Returns a tuple `(ok, error_message)` where `ok` is True if the API responded
+    successfully and `error_message` contains details on failure when `ok` is False.
+    """
+    url = "https://api.imdbapi.dev/search/titles"
+    params = {"query": "test"}
+
+    res = await _make_request_with_retry(url, params=params, max_retries=1)
+
+    # _make_request_with_retry returns a dict with an "error" key on failures
+    if isinstance(res, dict) and res.get("error"):
+        console.print(f"[red]✗ IMDB API test failed: {res.get('error')}[/red]")
+        return False, res.get("error")
+
+    console.print("[green]✓ IMDB API reachable[/green]")
+    return True, None
