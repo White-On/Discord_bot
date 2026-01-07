@@ -2,12 +2,14 @@ import discord
 import os
 import random
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
-from discord import app_commands, Poll
+from discord import app_commands, ScheduledEvent, Poll, EntityType
 from discord.utils import sleep_until, utcnow
 from discord.ext import commands
 from rich.console import Console
+from rich.table import Table
 
 from src.constants import (
     ENTICIPATION_SENTENCE_LIST,
@@ -21,12 +23,13 @@ from src.utils import (
     prochain_mercredi,
     discord_timestamps,
     publish_discord_message,
+    images_urls_to_bytes_horizontal,
 )
 from src.imdb import first_result_title_details, prepare_message, test_imdb_api
 
 console = Console()
 
-# TODO: Clean backup if API calls are not working anymore
+PARIS_TZ = ZoneInfo("Europe/Paris")
 
 load_dotenv()
 bot = commands.Bot(command_prefix="/", intents=discord.Intents.all())
@@ -42,6 +45,14 @@ async def on_ready():
 
         synced = await bot.tree.sync()
         console.print(f"[green]✓[/green] Synced {len(synced)} command(s)")
+
+        # list commands
+        table = Table(title="Registered Commands")
+        table.add_column("Command Name", style="cyan", no_wrap=True)
+        for command in bot.tree.walk_commands():
+            table.add_row(command.name) 
+        console.print(table)
+
     except Exception as e:
         console.print(f"[red]✗ Error during bot initialization:[/red] {e}")
 
@@ -279,7 +290,7 @@ async def poll_decision(
 
 @bot.tree.command(name="movie_night")
 @app_commands.describe(movies_list="la liste des films a proposer")
-async def create_poll(
+async def movie_night(
     interaction: discord.Interaction,
     movies_list: str,
 ):
@@ -348,6 +359,8 @@ async def create_poll(
                 show_message=True,
             )
         else:
+            img_url_list: list[str] = []
+
             console.print("[green]✓[/green] IMDB API is reachable")
             with console.status("[cyan]Getting movie infos..."):
                 for movie in list_movies:
@@ -368,6 +381,18 @@ async def create_poll(
                             await interaction.followup.send(
                                 message, embed=embed, ephemeral=False
                             )
+                        
+                        # Collect image URL
+                        primary_image = info.get("primaryImage")
+                        if primary_image:
+                            image_url = (
+                                primary_image.get("url")
+                                if isinstance(primary_image, dict)
+                                else primary_image
+                            )
+                            if image_url:
+                                img_url_list.append(image_url)
+
                     except Exception as e:
                         console.print(
                             f"[yellow]⚠[/yellow] Error getting info for {movie}: {e}"
@@ -381,8 +406,8 @@ async def create_poll(
 
         reminder_message = (
             f"## Hey <@&{MOVIE_NIGHT_ROLE_ID}> ! N'oubliez pas de voter pour le film de la watchparty !\n"
-            f"La soirée film aura lieu {discord_timestamps(prochain_mercredi())}"
-            f"({discord_timestamps(prochain_mercredi(), format='R')})."
+            f"La soirée film aura lieu {discord_timestamps(prochain_mercredi() + timedelta(hours=1))} "
+            f"({discord_timestamps(prochain_mercredi() + timedelta(hours=1), format='R')})."
         )
         await publish_discord_message(
             reminder_message,
@@ -391,6 +416,35 @@ async def create_poll(
         )
 
         console.print("[green]✓[/green] Movie night poll created successfully")
+
+        # voice_channel_id = 585547683389898756
+        voice_channel_id = 667070663038861312
+        voice_channel = bot.get_channel(voice_channel_id)
+        description = (
+            "Rejoignez-nous pour une soirée film ! Le film sera choisi en fonction des votes!\n"
+            "N'oubliez pas de voter dans le sondage ! 🍿🎬\n"
+            "Les choix de films proposés sont :\n"
+            + ", \n".join(list_movies)
+        )
+
+        image_bytes = images_urls_to_bytes_horizontal(img_url_list, target_height=300)
+
+        await interaction.guild.create_scheduled_event(
+            name= interaction.channel.name,
+            description=description,
+            start_time=prochain_mercredi().astimezone(PARIS_TZ) + timedelta(hours=1),
+            end_time=prochain_mercredi().astimezone(PARIS_TZ) + timedelta(hours=3),
+            privacy_level=discord.PrivacyLevel.guild_only,
+            entity_type=EntityType.voice,
+            image=image_bytes,
+            channel=voice_channel,
+            # location="En ligne",
+        )
+
+        await publish_discord_message(
+            "Événement créé avec succès !", interaction, show_message=False
+        )
+
         return True
 
     except Exception as e:
@@ -400,9 +454,39 @@ async def create_poll(
         await publish_discord_message(
             "[red]✗ Une erreur est survenue lors de la création du sondage de film[/red]",
             interaction,
-            show_message=True,
+            show_message=False,
         )
         return False
+
+@bot.tree.command(name="create_event")
+@app_commands.describe(description="la description de l'événement")
+async def create_event(interaction: discord.Interaction, description: str):
+
+    """
+    Commande pour créer un événement programmé sur le serveur
+    """
+    with open("img.jpg", "rb") as f:
+        image_bytes = f.read()
+
+    channel_id = 585547683389898756
+    channel = bot.get_channel(channel_id)
+
+    await interaction.guild.create_scheduled_event(
+        name="Événement spécial",
+        description=description,
+        start_time=prochain_mercredi().astimezone(PARIS_TZ) + timedelta(hours=1),
+        end_time=prochain_mercredi().astimezone(PARIS_TZ) + timedelta(hours=3),
+        privacy_level=discord.PrivacyLevel.guild_only,
+        entity_type=EntityType.voice,
+        # location="En ligne",
+        image=image_bytes,
+        channel=channel,
+        )
+
+    await publish_discord_message(
+        "Événement créé avec succès !", interaction, show_message=False
+    )
+
 
 
 @bot.event

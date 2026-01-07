@@ -3,7 +3,14 @@ Utility functions for the Discord bot
 """
 
 import discord
+import requests
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+from PIL import Image
+from io import BytesIO
+
+
+PARIS_TZ = ZoneInfo("Europe/Paris")
 
 
 def get_role_id_from_mention(mention: str) -> int:
@@ -43,6 +50,7 @@ def prochain_mercredi(date_reference: datetime = None) -> datetime:
     return datetime.combine(
         date_reference.date() + timedelta(days=jours_a_ajouter),
         datetime.min.time().replace(hour=20, minute=30),
+
     )
 
 
@@ -82,3 +90,55 @@ async def publish_discord_message(
         await interaction.followup.send(message, ephemeral=not show_message)
     else:
         await interaction.response.send_message(message, ephemeral=not show_message)
+
+def images_urls_to_bytes_horizontal(
+    urls: list[str],
+    target_height: int | None = None,
+    background=(255, 255, 255, 0)
+) -> bytes:
+    """
+    Télécharge des images depuis des URLs, les colle horizontalement
+    et retourne l'image finale en bytes (PNG).
+    """
+
+    images: list[Image.Image] = []
+
+    # 1. Télécharger les images
+    for url in urls:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        img = Image.open(BytesIO(response.content)).convert("RGBA")
+        images.append(img)
+
+    if not images:
+        raise ValueError("Aucune image fournie")
+
+    # 2. Déterminer la hauteur cible
+    if target_height is None:
+        target_height = max(img.height for img in images)
+
+    # 3. Redimensionner à hauteur identique
+    resized_images: list[Image.Image] = []
+    total_width = 0
+
+    for img in images:
+        ratio = target_height / img.height
+        new_width = int(img.width * ratio)
+        resized = img.resize((new_width, target_height), Image.LANCZOS)
+        resized_images.append(resized)
+        total_width += new_width
+
+    # 4. Créer l'image finale
+    final_img = Image.new("RGBA", (total_width, target_height), background)
+
+    x_offset = 0
+    for img in resized_images:
+        final_img.paste(img, (x_offset, 0), img)
+        x_offset += img.width
+
+    # 5. Conversion en bytes
+    buffer = BytesIO()
+    final_img.save(buffer, format="PNG")
+    buffer.seek(0)
+
+    return buffer.getvalue()
