@@ -420,6 +420,12 @@ async def movie_night(
         # voice_channel_id = 585547683389898756
         voice_channel_id = 667070663038861312
         voice_channel = bot.get_channel(voice_channel_id)
+        if voice_channel is None:
+            console.print(
+                f"[red]✗[/red] Voice channel with ID {voice_channel_id} not found"
+            )
+            return True
+
         description = (
             "Rejoignez-nous pour une soirée film ! Le film sera choisi en fonction des votes!\n"
             "N'oubliez pas de voter dans le sondage ! 🍿🎬\n"
@@ -457,36 +463,6 @@ async def movie_night(
             show_message=False,
         )
         return False
-
-@bot.tree.command(name="create_event")
-@app_commands.describe(description="la description de l'événement")
-async def create_event(interaction: discord.Interaction, description: str):
-
-    """
-    Commande pour créer un événement programmé sur le serveur
-    """
-    with open("img.jpg", "rb") as f:
-        image_bytes = f.read()
-
-    channel_id = 585547683389898756
-    channel = bot.get_channel(channel_id)
-
-    await interaction.guild.create_scheduled_event(
-        name="Événement spécial",
-        description=description,
-        start_time=prochain_mercredi().astimezone(PARIS_TZ) + timedelta(hours=1),
-        end_time=prochain_mercredi().astimezone(PARIS_TZ) + timedelta(hours=3),
-        privacy_level=discord.PrivacyLevel.guild_only,
-        entity_type=EntityType.voice,
-        # location="En ligne",
-        image=image_bytes,
-        channel=channel,
-        )
-
-    await publish_discord_message(
-        "Événement créé avec succès !", interaction, show_message=False
-    )
-
 
 
 @bot.event
