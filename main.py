@@ -346,7 +346,7 @@ async def movie_night(
         for movie in list_movies:
             poll.add_answer(text=movie)
 
-        await interaction.response.send_message(poll=poll, silent=False)
+        poll_return = await interaction.response.send_message(poll=poll, silent=False)
         console.print(f"[green]✓[/green] Poll created with {len(list_movies)} movies")
 
         # Verify IMDB API availability before fetching details
@@ -431,8 +431,8 @@ async def movie_night(
         description = (
             "Rejoignez-nous pour une soirée film ! Le film sera choisi en fonction des votes!\n"
             "N'oubliez pas de voter dans le sondage ! 🍿🎬\n"
-            "Les choix de films proposés sont :\n"
-            + ", \n".join(list_movies)
+            "Vous pouvez directement voter au message du sondage ici : "
+            f"https://discord.com/channels/{interaction.guild.id}/{interaction.channel.id}/{poll_return.id}"
         )
 
         image_bytes = images_urls_to_bytes_horizontal(img_url_list, target_height=300)
