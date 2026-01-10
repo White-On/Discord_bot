@@ -137,7 +137,19 @@ def prepare_message(title_details: dict):
         message += f"Rating: **{agg_rating}** (IMDB rating, >7 is usually good)\n"
         message += f"Genres: {', '.join(genres) if genres else 'N/A'}\n"
 
+        # calculate the color based on rating
+        if agg_rating != "N/A":
+            rating_value = float(agg_rating)
+            if rating_value >= 7.0:
+                color = 0x00FF00  # Green
+            elif 5.0 <= rating_value < 7.0:
+                color = 0xFFFF00  # Yellow
+            else:
+                color = 0xFF0000  # Red
+
         embed = Embed()
+        embed.description = message
+        embed.color = color
         primary_image = title_details.get("primaryImage")
         if primary_image:
             image_url = (

@@ -379,7 +379,7 @@ async def movie_night(
                         message, embed = prepare_message(info)
                         if message and embed:
                             await interaction.followup.send(
-                                message, embed=embed, ephemeral=False
+                                embed=embed, ephemeral=False
                             )
                         
                         # Collect image URL
