@@ -74,7 +74,7 @@ def discord_timestamps(date: datetime, format: str = "f") -> str:
 
 
 async def publish_discord_message(
-    message: str, interaction: discord.Interaction, show_message: bool = True
+    message: str, interaction: discord.Interaction, show_message: bool = True, **kwargs
 ):
     """
     Envoie un message sur Discord via une interaction.
@@ -87,9 +87,9 @@ async def publish_discord_message(
     :param show_message: Détermine si le message est visible pour tous (`True`) ou seulement pour l'utilisateur (`False`).
     """
     if interaction.response.is_done():
-        await interaction.followup.send(message, ephemeral=not show_message)
+        await interaction.followup.send(message, ephemeral=not show_message, **kwargs)
     else:
-        await interaction.response.send_message(message, ephemeral=not show_message)
+        await interaction.response.send_message(message, ephemeral=not show_message, **kwargs)
 
 def images_urls_to_bytes_horizontal(
     urls: list[str],

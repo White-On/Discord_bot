@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
-from discord import app_commands, ScheduledEvent, Poll, EntityType
+from discord import app_commands, ScheduledEvent, Poll, EntityType, AllowedMentions
 from discord.utils import sleep_until, utcnow
 from discord.ext import commands
 from rich.console import Console
@@ -409,10 +409,12 @@ async def movie_night(
             f"La soirée film aura lieu {discord_timestamps(prochain_mercredi() + timedelta(hours=1))} "
             f"({discord_timestamps(prochain_mercredi() + timedelta(hours=1), format='R')})."
         )
+        mention = AllowedMentions(roles=True, users=False, everyone=False)
         await publish_discord_message(
             reminder_message,
             interaction,
             show_message=True,
+            allowed_mentions=mention,
         )
 
         console.print("[green]✓[/green] Movie night poll created successfully")
