@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
-from discord import app_commands, ScheduledEvent, Poll, EntityType, AllowedMentions
+from discord import app_commands, Poll, EntityType, AllowedMentions
 from discord.utils import sleep_until, utcnow
 from discord.ext import commands
 from rich.console import Console
@@ -18,16 +18,26 @@ from src.constants import (
 )
 from src.utils import (
     get_role_id_from_mention,
-    get_user_id_from_mention,
-    check_if_user_exist,
     prochain_mercredi,
     discord_timestamps,
     publish_discord_message,
     images_urls_to_bytes_horizontal,
+    parse_mentions,
 )
 from src.imdb import first_result_title_details, prepare_message, test_imdb_api
 
+# TODO:
+# - remove all french comments, messages and docstrings
+# - chunck commands in functions to reduce size of main.py
+# - pydantic models for imdb responses
+# - find a solution to keep console print style accross files
+# - update README with new commands
+
 console = Console()
+# rich theme setup can be done here if needed
+success_style = "bold green"
+error_style = "bold red"
+warning_style = "bold yellow"
 
 PARIS_TZ = ZoneInfo("Europe/Paris")
 
@@ -41,166 +51,138 @@ async def on_ready():
     Called when the bot is ready.
     """
     try:
-        console.print(f"[green]✓[/green] Logged on as {bot.user}!")
+        console.print(f"✓ Logged on as {bot.user}!", style=success_style)
 
         synced = await bot.tree.sync()
-        console.print(f"[green]✓[/green] Synced {len(synced)} command(s)")
+        console.print(f"✓ Synced {len(synced)} command(s)", style=success_style)
 
         # list commands
         table = Table(title="Registered Commands")
         table.add_column("Command Name", style="cyan", no_wrap=True)
         for command in bot.tree.walk_commands():
-            table.add_row(command.name) 
+            table.add_row(command.name)
         console.print(table)
 
     except Exception as e:
-        console.print(f"[red]✗ Error during bot initialization:[/red] {e}")
+        console.print(f"✗ Error during bot initialization: {e}", style=error_style)
 
 
-@bot.tree.command(name="random_choice_user")
+@bot.tree.command(name="Radom Choice User")
 @app_commands.describe(
-    all_mentions="Liste des roles et utilisateur (e.g., @Role1 @Role2 @User1 ...). séparé d'un espace. **Attention, @everyone et @here pas supporté**"
+    mentions="List of role mentions and/or user mentions separated by spaces"
 )
 @app_commands.describe(
-    show_message="Affiche le message pour tous le monde (par défaut, le message ne sera visible que pour vous)"
+    show_message="Display the message to everyone (by default, the message will only be visible to you)"
 )
 async def random_choice_user(
-    interaction: discord.Interaction, all_mentions: str, show_message: bool = True
+    interaction: discord.Interaction, mentions: str, show_message: bool = True
 ):
-    try:
-        # Validate input
-        if not all_mentions or not all_mentions.strip():
+    # Validate the input
+    # extract role mentions and user mentions
+    # extract user IDs from mentions
+    # unique the list of user IDs
+    # randomly select one user ID
+
+    if not mentions or not mentions.strip():
+        await interaction.response.send_message(
+            "You must provide at least one mention (role or user).",
+            ephemeral=True
+        )
+        return
+    
+    # Split roles mentions into a list of role strings
+    mentions = mentions.split()
+    
+    selected_members, role_mentions = parse_mentions(
+        mentions, interaction.guild.members
+    )
+
+    # Process role mentions
+    for role_mention in role_mentions:
+        role = discord.utils.get(
+            interaction.guild.roles, id=get_role_id_from_mention(role_mention)
+        )
+        if role is None:
             await publish_discord_message(
-                "[red]✗ Erreur:[/red] Veuillez fournir au moins une mention (rôle ou utilisateur).",
+                f"✗ Error: Role {role_mention} does not exist.",
                 interaction,
                 show_message=show_message,
             )
             return
 
-        # Split roles mentions into a list of role strings
-        all_mentions = all_mentions.split()
-        role_mentions = []
-        selected_members = []
-
-        for mention in all_mentions:
-            if mention == "@everyone" or mention == "@here":
-                console.print(
-                    f"[yellow]⚠[/yellow] Mention '{mention}' not supported, skipping..."
-                )
-                continue
-
-            try:
-                if not mention.startswith("<@&"):
-                    # then it's a user mention
-                    user_id = get_user_id_from_mention(mention)
-                    if check_if_user_exist(user_id, interaction.guild.members):
-                        selected_members.append(user_id)
-                    else:
-                        console.print(
-                            f"[yellow]⚠[/yellow] User {mention} not found in server"
-                        )
-                else:
-                    role_mentions.append(mention)
-            except Exception as e:
-                console.print(
-                    f"[yellow]⚠[/yellow] Error processing mention {mention}: {e}"
-                )
-                continue
-
-        # Process role mentions
-        for role_mention in role_mentions:
-            try:
-                role = discord.utils.get(
-                    interaction.guild.roles, id=get_role_id_from_mention(role_mention)
-                )
-                if role is None:
-                    await publish_discord_message(
-                        f"[red]✗ Erreur:[/red] Role {role_mention} does not exist.",
-                        interaction,
-                        show_message=show_message,
-                    )
-                    return
-
-                # Get all members with this role
-                members_in_role = [
-                    member.id
-                    for member in interaction.guild.members
-                    if role in member.roles
-                ]
-                if not members_in_role:
-                    console.print(
-                        f"[yellow]⚠[/yellow] No members found with role {role_mention}"
-                    )
-                    await publish_discord_message(
-                        f"[yellow]⚠[/yellow] **Attention !** Aucun utilisateur trouvé ayant le role :{role_mention}.",
-                        interaction,
-                        show_message=True,
-                    )
-                    continue
-
-                selected_members += members_in_role
-            except Exception as e:
-                console.print(f"[red]✗ Error processing role {role_mention}:[/red] {e}")
-                await publish_discord_message(
-                    f"[red]✗ Erreur lors du traitement du rôle {role_mention}[/red]",
-                    interaction,
-                    show_message=show_message,
-                )
-                return
-
-        # Check if any members were selected
-        if not selected_members:
-            await publish_discord_message(
-                "[red]✗ Erreur:[/red] Aucun utilisateur trouvé correspondant à vos mentions.",
-                interaction,
-                show_message=show_message,
+        # Get all members with this role
+        members_in_role = [
+            member.id
+            for member in interaction.guild.members
+            if role in member.roles
+        ]
+        if not members_in_role:
+            console.print(
+                f"⚠ No members found with role {role_mention}"
             )
-            return
+            await publish_discord_message(
+                f"⚠ **No members found with role {role_mention}**",
+                interaction,
+                show_message=True,
+            )
+            continue
 
-        # Remove duplicates and select a random member
-        selected_member = random.choice(list(set(selected_members)))
+        selected_members += members_in_role
 
-        random_preparation_sentence = random.choice(ENTICIPATION_SENTENCE_LIST)
+    # Check if any members were selected
+    if not selected_members:
         await publish_discord_message(
-            random_preparation_sentence, interaction, show_message=show_message
-        )
-
-        await sleep_until(utcnow() + timedelta(seconds=3))
-
-        random_selection_sentence = random.choice(SELECTION_SENTENCE_LIST)
-
-        # Send a response with all selected members
-        await publish_discord_message(
-            random_selection_sentence.format(nom=f"<@{selected_member}>"),
+            "✗ Error: No users found matching your mentions.",
             interaction,
             show_message=show_message,
         )
-        console.print(f"[green]✓[/green] Random user selected: {selected_member}")
+        return
 
-    except Exception as e:
-        console.print(
-            f"[red]✗ Error in random_choice_user command:[/red] {e}", style="bold red"
-        )
-        await publish_discord_message(
-            "[red]✗ Une erreur est survenue lors de la sélection aléatoire[/red]",
-            interaction,
-            show_message=show_message,
-        )
+    # Remove duplicates and select a random member
+    selected_member = random.choice(list(set(selected_members)))
+
+    random_preparation_sentence = random.choice(ENTICIPATION_SENTENCE_LIST)
+    await publish_discord_message(
+        random_preparation_sentence, interaction, show_message=show_message
+    )
+
+    await sleep_until(utcnow() + timedelta(seconds=3))
+
+    random_selection_sentence = random.choice(SELECTION_SENTENCE_LIST)
+
+    # Send a response with all selected members
+    await publish_discord_message(
+        random_selection_sentence.format(nom=f"<@{selected_member}>"),
+        interaction,
+        show_message=show_message,
+    )
+    console.print(f"✓ Random user selected: {selected_member}")
+
 
 
 @bot.tree.command(name="poll_decision")
-@app_commands.describe(poll_message_id="Identifiant du message avec un sondage *fini*")
+@app_commands.describe(poll_message_id="ID of the poll message to evaluate")
 @app_commands.describe(
-    show_message="Affiche le message pour tous le monde (par défaut, le message ne sera visible que pour vous)"
+    show_message="Display the message to everyone (by default, the message will only be visible to you)"
 )
 async def poll_decision(
     interaction: discord.Interaction, poll_message_id: str, show_message: bool = True
 ):
+    """
+    Get the poll results and make a random choice in case of a tie.
+    - get the poll from the message ID
+    - check if the poll is finalized
+    - check if there are answers
+    - check for ties
+    - randomly select one of the tied answers
+    - send the result as a message
+
+    """
     try:
         # Validate poll_message_id format
         if not poll_message_id.isdigit():
             await publish_discord_message(
-                "[red]✗ Erreur:[/red] L'ID du message doit être un nombre.",
+                "✗ Error: The message ID must be a number.",
                 interaction,
                 show_message=show_message,
             )
@@ -211,15 +193,15 @@ async def poll_decision(
             poll_message = await interaction.channel.fetch_message(int(poll_message_id))
         except discord.NotFound:
             await publish_discord_message(
-                f"[red]✗ Erreur:[/red] Message avec l'ID {poll_message_id} non trouvé.",
+                f"✗ Error: Message with ID {poll_message_id} not found.",
                 interaction,
                 show_message=show_message,
             )
-            console.print(f"[red]✗ Message not found:[/red] {poll_message_id}")
+            console.print(f"✗ Message not found: {poll_message_id}")
             return
         except discord.Forbidden:
             await publish_discord_message(
-                "[red]✗ Erreur:[/red] Pas de permission pour accéder à ce message.",
+                "✗ Error: Missing permissions to fetch the message.",
                 interaction,
                 show_message=show_message,
             )
@@ -228,19 +210,19 @@ async def poll_decision(
         # Check if message has a poll
         if not poll_message.poll:
             await publish_discord_message(
-                "[red]✗ Erreur:[/red] Ce message ne contient pas de sondage.",
+                "✗ Error: The specified message does not contain a poll.",
                 interaction,
                 show_message=show_message,
             )
             return
 
         poll = poll_message.poll
-        console.print(f"[green]✓[/green] Poll found: {poll.question}")
+        console.print(f"✓ Poll found: {poll.question}")
 
         # Is the poll finished
         if not poll.is_finalized():
             await publish_discord_message(
-                "Ce sondage n'est pas fini, voyons ! Un peu de patience 😊",
+                "The poll is not finalized yet. Please wait until it ends.",
                 interaction,
                 show_message=show_message,
             )
@@ -249,7 +231,7 @@ async def poll_decision(
         # Check if there are answers
         if not poll.answers:
             await publish_discord_message(
-                "[red]✗ Erreur:[/red] Le sondage ne contient pas de réponses.",
+                "✗ Error: The poll does not contain any answers.",
                 interaction,
                 show_message=show_message,
             )
@@ -269,39 +251,45 @@ async def poll_decision(
         # Choisir aléatoirement parmi les clés maximales
         coin_flip_answer = random.choice(answers_equality)
 
-        console.print(f"[green]✓[/green] Poll decision made: {coin_flip_answer}")
+        console.print(f"✓ Poll decision made: {coin_flip_answer}")
 
         await publish_discord_message(
-            f"# Pour résoudre le problème d'égalité trouvé pour le sondage *{poll.question}*, j'ai choisi au hasard pour départager et donc **{coin_flip_answer}** est votre choix final !",
+            f"# To resolve the tie found in the poll *{poll.question}*, I randomly chose to break the tie and therefore **{coin_flip_answer}** is your final choice!",
             interaction,
             show_message=show_message,
         )
 
     except Exception as e:
         console.print(
-            f"[red]✗ Error in poll_decision command:[/red] {e}", style="bold red"
+            f"✗ Error in poll_decision command: {e}", style="bold red"
         )
         await publish_discord_message(
-            "[red]✗ Une erreur est survenue lors du traitement du sondage[/red]",
+            "✗ An error occurred while processing the poll decision.",
             interaction,
             show_message=show_message,
         )
 
 
 @bot.tree.command(name="movie_night")
-@app_commands.describe(movies_list="la liste des films a proposer")
+@app_commands.describe(movies_list="the list of movies to propose")
 async def movie_night(
     interaction: discord.Interaction,
     movies_list: str,
 ):
     """
-    Commande pour organiser une soirée film
+    Create a movie night poll and scheduled event.
+    - Validate input
+    - Calculate time until next Wednesday at 20:30
+    - Create a poll with the provided movies
+    - Fetch movie details from IMDB API
+    - Create a scheduled event in the guild
+    - Send confirmation message
     """
     try:
         # Validate input
         if not movies_list or not movies_list.strip():
             await publish_discord_message(
-                "[red]✗ Erreur:[/red] Veuillez fournir au moins un film (séparés par |).",
+                "✗ Error: You must provide a list of movies separated by '|'.",
                 interaction,
                 show_message=True,
             )
@@ -311,16 +299,16 @@ async def movie_night(
         time_until_next_wenesday = next_wenesday - datetime.now()
 
         if time_until_next_wenesday.total_seconds() <= 0:
-            console.print("[yellow]⚠[/yellow] Next wednesday is in the past")
+            console.print("⚠ Next wednesday is in the past")
             await publish_discord_message(
-                "[yellow]⚠[/yellow] Attention : la date du prochain mercredi semble incorrecte.",
+                "⚠ Error: The next Wednesday at 20:30 is in the past.",
                 interaction,
                 show_message=True,
             )
             return
 
         console.print(
-            f"[green]✓[/green] Time until next wednesday: {time_until_next_wenesday}"
+            f"✓ Time until next wednesday: {time_until_next_wenesday}"
         )
 
         list_movies = [
@@ -329,16 +317,16 @@ async def movie_night(
 
         if not list_movies:
             await publish_discord_message(
-                "[red]✗ Erreur:[/red] Aucun film valide fourni.",
+                "✗ Error: No valid movies provided.",
                 interaction,
                 show_message=True,
             )
             return
 
-        console.print(f"[green]✓[/green] Movies list: {list_movies}")
+        console.print(f"✓ Movies list: {list_movies}")
 
         poll = Poll(
-            question="On regarde quoi pour la soirée film ? :)",
+            question="What movie do you want to watch for the movie night?",
             duration=time_until_next_wenesday,
             multiple=True,
         )
@@ -347,21 +335,21 @@ async def movie_night(
             poll.add_answer(text=movie)
 
         poll_return = await interaction.response.send_message(poll=poll, silent=False)
-        console.print(f"[green]✓[/green] Poll created with {len(list_movies)} movies")
+        console.print(f"✓ Poll created with {len(list_movies)} movies")
 
         # Verify IMDB API availability before fetching details
         api_ok, api_error = await test_imdb_api()
         if not api_ok:
-            console.print(f"[red]✗[/red] IMDB API test failed: {api_error}")
+            console.print(f"✗ IMDB API test failed: {api_error}")
             await publish_discord_message(
-                f"Impossible de récupérer les informations des films car l'API IMDB n'est pas joignable : {api_error}",
+                f"✗ IMDB API is not reachable: {api_error}",
                 interaction,
                 show_message=True,
             )
         else:
             img_url_list: list[str] = []
 
-            console.print("[green]✓[/green] IMDB API is reachable")
+            console.print("✓ IMDB API is reachable")
             with console.status("[cyan]Getting movie infos..."):
                 for movie in list_movies:
                     try:
@@ -372,7 +360,7 @@ async def movie_night(
 
                         if not info or "error" in info:
                             console.print(
-                                f"[yellow]⚠[/yellow] No info found for movie: {movie}"
+                                f"⚠ No info found for movie: {movie}"
                             )
                             continue
 
@@ -381,7 +369,7 @@ async def movie_night(
                             await interaction.followup.send(
                                 embed=embed, ephemeral=False
                             )
-                        
+
                         # Collect image URL
                         primary_image = info.get("primaryImage")
                         if primary_image:
@@ -395,18 +383,18 @@ async def movie_night(
 
                     except Exception as e:
                         console.print(
-                            f"[yellow]⚠[/yellow] Error getting info for {movie}: {e}"
+                            f"⚠ Error getting info for {movie}: {e}"
                         )
                     continue
 
         # Check if MOVIE_NIGHT_ROLE_ID is set
         if not MOVIE_NIGHT_ROLE_ID:
-            console.print("[yellow]⚠[/yellow] MOVIE_NIGHT_ROLE_ID not set in constants")
+            console.print("⚠ MOVIE_NIGHT_ROLE_ID not set in constants")
             return True
 
         reminder_message = (
-            f"## Hey <@&{MOVIE_NIGHT_ROLE_ID}> ! N'oubliez pas de voter pour le film de la watchparty !\n"
-            f"La soirée film aura lieu {discord_timestamps(prochain_mercredi() + timedelta(hours=1))} "
+            f"## Hey <@&{MOVIE_NIGHT_ROLE_ID}> ! Don't forget to vote for the movie night!\n"
+            f"The movie night will take place {discord_timestamps(prochain_mercredi() + timedelta(hours=1))} "
             f"({discord_timestamps(prochain_mercredi() + timedelta(hours=1), format='R')})."
         )
         mention = AllowedMentions(roles=True, users=False, everyone=False)
@@ -417,28 +405,28 @@ async def movie_night(
             allowed_mentions=mention,
         )
 
-        console.print("[green]✓[/green] Movie night poll created successfully")
+        console.print("✓ Movie night poll created successfully")
 
         # voice_channel_id = 585547683389898756
         voice_channel_id = 667070663038861312
         voice_channel = bot.get_channel(voice_channel_id)
         if voice_channel is None:
             console.print(
-                f"[red]✗[/red] Voice channel with ID {voice_channel_id} not found"
+                f"✗ Voice channel with ID {voice_channel_id} not found"
             )
             return True
 
         description = (
-            "Rejoignez-nous pour une soirée film ! Le film sera choisi en fonction des votes!\n"
-            "N'oubliez pas de voter dans le sondage ! 🍿🎬\n"
-            "Vous pouvez directement voter au message du sondage ici : "
+            "Join us for a movie night! The movie will be chosen based on votes!\n"
+            "Don't forget to vote in the poll! 🍿🎬\n"
+            "You can vote directly in the poll message here: "
             f"https://discord.com/channels/{interaction.guild.id}/{interaction.channel.id}/{poll_return.id}"
         )
 
         image_bytes = images_urls_to_bytes_horizontal(img_url_list, target_height=300)
 
         await interaction.guild.create_scheduled_event(
-            name= interaction.channel.name,
+            name=interaction.channel.name,
             description=description,
             start_time=prochain_mercredi().astimezone(PARIS_TZ) + timedelta(hours=1),
             end_time=prochain_mercredi().astimezone(PARIS_TZ) + timedelta(hours=3),
@@ -457,10 +445,10 @@ async def movie_night(
 
     except Exception as e:
         console.print(
-            f"[red]✗ Error in create_poll command:[/red] {e}", style="bold red"
+            f"✗ Error in create_poll command: {e}", style="bold red"
         )
         await publish_discord_message(
-            "[red]✗ Une erreur est survenue lors de la création du sondage de film[/red]",
+            "✗ An error occurred while creating the movie night poll.",
             interaction,
             show_message=False,
         )
@@ -472,13 +460,13 @@ async def on_error(event, *args, **kwargs):
     """
     Global error handler for bot events
     """
-    console.print("[red]✗ Global error handler triggered[/red]")
+    console.print("✗ Global error handler triggered")
     console.print_exception()
 
 
 try:
     bot.run(os.getenv("DISCORD_TOKEN"))
 except ValueError:
-    console.print("[red]✗ DISCORD_TOKEN not found in .env file[/red]")
+    console.print("✗ DISCORD_TOKEN not found in .env file")
 except Exception as e:
-    console.print(f"[red]✗ Failed to start bot:[/red] {e}", style="bold red")
+    console.print(f"✗ Failed to start bot: {e}", style="bold red")

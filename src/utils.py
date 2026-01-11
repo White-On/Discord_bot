@@ -34,11 +34,7 @@ def check_if_user_exist(user_id: int, all_user: list) -> bool:
 
 def prochain_mercredi(date_reference: datetime = None) -> datetime:
     """
-    Retourne la date du prochain mercredi à 20h30 à partir de la date de référence donnée.
-    Si aucune date de référence n'est fournie, utilise la date actuelle.
-
-    :param date_reference: Une date de référence optionnelle (datetime).
-    :return: Un objet datetime représentant le prochain mercredi à 20h30.
+    Return the next Wednesday at 20:30 from a given date.
     """
     date_reference = date_reference if date_reference else datetime.today()
 
@@ -50,17 +46,12 @@ def prochain_mercredi(date_reference: datetime = None) -> datetime:
     return datetime.combine(
         date_reference.date() + timedelta(days=jours_a_ajouter),
         datetime.min.time().replace(hour=20, minute=30),
-
     )
 
 
 def discord_timestamps(date: datetime, format: str = "f") -> str:
     """
-    Génère un timestamp Discord à partir d'une date.
-
-    :param date: Un objet datetime
-    :param format: Format du timestamp Discord ('F', 'f', 'D', 'd', 'T', 't', 'R')
-    :return: Une chaîne de caractères compatible avec Discord
+    Create a Discord timestamp string from a datetime object.
     """
     accepted_formats = {"F", "f", "D", "d", "T", "t", "R"}
 
@@ -77,33 +68,26 @@ async def publish_discord_message(
     message: str, interaction: discord.Interaction, show_message: bool = True, **kwargs
 ):
     """
-    Envoie un message sur Discord via une interaction.
-
-    Cette fonction envoie un message en réponse à une interaction Discord. Si la réponse a
-    déjà été envoyée, elle utilise `followup.send()`, sinon elle utilise `response.send_message()`.
-
-    :param message: Le message à envoyer sur Discord.
-    :param interaction: contenant l'état de l'interaction Discord
-    :param show_message: Détermine si le message est visible pour tous (`True`) ou seulement pour l'utilisateur (`False`).
+    Publish a message in Discord, either as an initial response or a follow-up.
     """
     if interaction.response.is_done():
         await interaction.followup.send(message, ephemeral=not show_message, **kwargs)
     else:
-        await interaction.response.send_message(message, ephemeral=not show_message, **kwargs)
+        await interaction.response.send_message(
+            message, ephemeral=not show_message, **kwargs
+        )
+
 
 def images_urls_to_bytes_horizontal(
-    urls: list[str],
-    target_height: int | None = None,
-    background=(255, 255, 255, 0)
+    urls: list[str], target_height: int | None = None, background=(255, 255, 255, 0)
 ) -> bytes:
     """
-    Télécharge des images depuis des URLs, les colle horizontalement
-    et retourne l'image finale en bytes (PNG).
+    Download images from URLs, resize them to the same height, concatenate them horizontally, and return the result as bytes.
     """
 
     images: list[Image.Image] = []
 
-    # 1. Télécharger les images
+    
     for url in urls:
         response = requests.get(url, timeout=10)
         response.raise_for_status()
@@ -113,11 +97,11 @@ def images_urls_to_bytes_horizontal(
     if not images:
         raise ValueError("Aucune image fournie")
 
-    # 2. Déterminer la hauteur cible
+    
     if target_height is None:
         target_height = max(img.height for img in images)
 
-    # 3. Redimensionner à hauteur identique
+    
     resized_images: list[Image.Image] = []
     total_width = 0
 
@@ -128,7 +112,7 @@ def images_urls_to_bytes_horizontal(
         resized_images.append(resized)
         total_width += new_width
 
-    # 4. Créer l'image finale
+    
     final_img = Image.new("RGBA", (total_width, target_height), background)
 
     x_offset = 0
@@ -136,9 +120,66 @@ def images_urls_to_bytes_horizontal(
         final_img.paste(img, (x_offset, 0), img)
         x_offset += img.width
 
-    # 5. Conversion en bytes
+    
     buffer = BytesIO()
     final_img.save(buffer, format="PNG")
     buffer.seek(0)
 
     return buffer.getvalue()
+
+def parse_mentions(
+    mentions: list[str],
+    all_users: list[discord.Member],
+    console,
+    warning_style,
+) -> tuple[list[int], list[str]]:
+    """
+    Parse a list of Discord mentions and separate user mentions from role mentions.
+    """
+    selected_members: list[int] = []
+    role_mentions: list[str] = []
+
+    for mention in mentions:
+        # Skip @everyone and @here mentions
+        if mention == "@everyone" or mention == "@here":
+            console.print(
+                f"⚠ Mention '{mention}' not supported, skipping...", style=warning_style
+            )
+            continue
+        if not mention.startswith("<@&"):
+            # User mention
+            user_id = get_user_id_from_mention(mention)
+            if check_if_user_exist(user_id, all_users):
+                # User exists
+                selected_members.append(user_id)
+            else:
+                console.print(
+                    f"⚠ User {mention} not found in server", style=warning_style
+                )
+        else:
+            role_mentions.append(mention)
+
+    return selected_members, role_mentions
+
+def fetch_user_from_role(
+    role_mention: str,
+    all_users: list[discord.Member],
+    console,
+    warning_style,
+) -> list[int]:
+    """
+    Collect user IDs of all members who have a specific role.
+    """
+    role_id = get_role_id_from_mention(role_mention)
+    selected_members: list[int] = []
+
+    for member in all_users:
+        if any(role.id == role_id for role in member.roles):
+            selected_members.append(member.id)
+
+    if not selected_members:
+        console.print(
+            f"⚠ No users found with role {role_mention}", style=warning_style
+        )
+
+    return selected_members

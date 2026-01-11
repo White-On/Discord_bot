@@ -62,7 +62,7 @@ llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash")
 # exclude_domains (optional, List[str]): List of domains to specifically exclude. Default is None.
 
 # Tavily search tool is used for text-based search on the web for the movie night
-tavily_search_tool  = TavilySearch(
+tavily_search_tool = TavilySearch(
     max_results=5,
     topic="general",
     # include_answer=False,
@@ -91,6 +91,7 @@ async def on_ready():
 
     # goes with tasks
     # slow_count.start()
+
 
 # @tasks.loop(seconds=5.0, count=5)
 # async def slow_count():
@@ -122,36 +123,45 @@ def check_if_user_exist(user_id: int, all_user: list) -> bool:
             return True
     return False
 
+
 def prochain_mercredi(date_reference: datetime = None) -> datetime:
     """
     Retourne la date du prochain mercredi à 21h15 à partir de la date de référence donnée.
     Si aucune date de référence n'est fournie, utilise la date actuelle.
-    
+
     :param date_reference: Une date de référence optionnelle (datetime).
     :return: Un objet datetime représentant le prochain mercredi à 21h15.
     """
     date_reference = date_reference if date_reference else datetime.today()
-    
-    # Calcul des jours à ajouter pour atteindre mercredi (mercredi = 2)
-    jours_a_ajouter = (2 - date_reference.weekday()) % 7 or 7  # Assure le mercredi suivant
-    
-    return datetime.combine(date_reference.date() + timedelta(days=jours_a_ajouter), datetime.min.time().replace(hour=21, minute=15))
 
-def discord_timestamps(date: datetime, format: str = 'f') -> str:
+    # Calcul des jours à ajouter pour atteindre mercredi (mercredi = 2)
+    jours_a_ajouter = (
+        2 - date_reference.weekday()
+    ) % 7 or 7  # Assure le mercredi suivant
+
+    return datetime.combine(
+        date_reference.date() + timedelta(days=jours_a_ajouter),
+        datetime.min.time().replace(hour=21, minute=15),
+    )
+
+
+def discord_timestamps(date: datetime, format: str = "f") -> str:
     """
     Génère un timestamp Discord à partir d'une date.
-    
+
     :param date: Un objet datetime
     :param format: Format du timestamp Discord ('F', 'f', 'D', 'd', 'T', 't', 'R')
     :return: Une chaîne de caractères compatible avec Discord
     """
-    accepted_formats = {'F', 'f', 'D', 'd', 'T', 't', 'R'}
-    
+    accepted_formats = {"F", "f", "D", "d", "T", "t", "R"}
+
     if format not in accepted_formats:
-        raise ValueError(f"Format non pris en charge. Formats acceptés : {', '.join(accepted_formats)}")
-    
+        raise ValueError(
+            f"Format non pris en charge. Formats acceptés : {', '.join(accepted_formats)}"
+        )
+
     timestamp = int(date.timestamp())  # Convertir en timestamp Unix
-    return f'<t:{timestamp}:{format}>'
+    return f"<t:{timestamp}:{format}>"
 
 
 @bot.tree.command(name="random_choice_user")
@@ -191,7 +201,9 @@ async def random_choice_user(
         )
         if role is None:
             await publish_discord_message(
-                f"Role {role_mention} does not exist.", interaction, show_message=show_message
+                f"Role {role_mention} does not exist.",
+                interaction,
+                show_message=show_message,
             )
             return
 
@@ -223,7 +235,7 @@ async def random_choice_user(
     await publish_discord_message(
         random_selection_sentence.format(nom=f"<@{selected_member}>"),
         interaction,
-        show_message = show_message,
+        show_message=show_message,
     )
 
 
@@ -247,7 +259,7 @@ async def poll_decision(
         await publish_discord_message(
             "Ce sondage n'est pas fini, voyons ! Un peu de patience 😊",
             interaction,
-            show_message = show_message,
+            show_message=show_message,
         )
         return
 
@@ -268,7 +280,7 @@ async def poll_decision(
     await publish_discord_message(
         f"# Pour résoudre le problème d'égalité trouvé pour le sondage *{poll.question}*, j'ai choisi au hasard pour départager et donc **{coin_flip_answer}** est votre choix final !",
         interaction,
-        show_message = show_message,
+        show_message=show_message,
     )
 
 
@@ -289,7 +301,9 @@ async def interract_with_chatbot(
         role = discord.utils.get(interaction.guild.roles, id=role_id)
         if role is None:
             await publish_discord_message(
-                f"Role {role_id} does not exist.", interaction, show_message=show_message
+                f"Role {role_id} does not exist.",
+                interaction,
+                show_message=show_message,
             )
             return
 
@@ -309,19 +323,28 @@ async def interract_with_chatbot(
     user_sending_query = interaction.user.id
 
     await publish_discord_message(
-        f"<@{user_sending_query}> viens de me demander **{human_query}**", interaction, show_message=show_message
+        f"<@{user_sending_query}> viens de me demander **{human_query}**",
+        interaction,
+        show_message=show_message,
     )
 
     system_oder = SystemMessage(
-            "Tu es un bot discord pouvant interragir avec les utilisateurs de facon familière. Tu es amical et peux parfois faire des blagues. Tu essayeras d'être concie dans tes réponses, donc pas le droit de dépaser les 10 phrases"
-        )
+        "Tu es un bot discord pouvant interragir avec les utilisateurs de facon familière. Tu es amical et peux parfois faire des blagues. Tu essayeras d'être concie dans tes réponses, donc pas le droit de dépaser les 10 phrases"
+    )
 
     if user_sending_query in nasty_users:
-        query = [system_oder, HumanMessage("Tu vas me répondre en prétendant que tu ne parles pas aux perdant du jeu Valorant et plutot te moquer narquoisement sur mon mauvais niveau sur le jeu Valorant. Sois sarcastique et drôle. Tu peux par exemple critiquer ma précision digne d'un bronze, ou bien mes tactique déplorable ou encore aussi à parler du mauvais système de point pour les parties classé qui semble fortement me défavoriser. Ta réponse dois être relativement cours et ne pas dépaser deux phrases")]
+        query = [
+            system_oder,
+            HumanMessage(
+                "Tu vas me répondre en prétendant que tu ne parles pas aux perdant du jeu Valorant et plutot te moquer narquoisement sur mon mauvais niveau sur le jeu Valorant. Sois sarcastique et drôle. Tu peux par exemple critiquer ma précision digne d'un bronze, ou bien mes tactique déplorable ou encore aussi à parler du mauvais système de point pour les parties classé qui semble fortement me défavoriser. Ta réponse dois être relativement cours et ne pas dépaser deux phrases"
+            ),
+        ]
     else:
         query = [system_oder, HumanMessage(human_query)]
 
-    chatbot_response = AIMessage("Une erreur est survenue en appelant l'API qui me permet de parler ! J'en suis désolé :(")
+    chatbot_response = AIMessage(
+        "Une erreur est survenue en appelant l'API qui me permet de parler ! J'en suis désolé :("
+    )
     try:
         chatbot_response = await llm.ainvoke(query)
     except Exception as e:
@@ -339,22 +362,28 @@ async def publish_poll(
     state: Annotated[dict, InjectedState],
     duration: int = 48,
     answers_emoji: str = None,
-    multiple: bool =True,
+    multiple: bool = True,
 ):
     """
     Commande pour créer un sondage avec réactions.
     """
     # print(f"{question = }, {answers.split('|') = }, {duration = }")
     interaction: discord.Interaction = state["interaction"]
-    answers = answers.split('|')
-    answers_emoji = answers_emoji.split() if answers_emoji is not None else [f"number_{idx}" for idx in range(len(answers))]
+    answers = answers.split("|")
+    answers_emoji = (
+        answers_emoji.split()
+        if answers_emoji is not None
+        else [f"number_{idx}" for idx in range(len(answers))]
+    )
     if len(answers) < 2:
         await publish_discord_message(
-            "Merci d'ajouter au moins deux choix pour le sondage !", interaction, show_message=True
+            "Merci d'ajouter au moins deux choix pour le sondage !",
+            interaction,
+            show_message=True,
         )
         return None
-    
-    poll = Poll(question,timedelta(hours=duration), multiple=multiple)
+
+    poll = Poll(question, timedelta(hours=duration), multiple=multiple)
 
     # for answer, emoji in zip(answers, answers_emoji):
     #     print(f'Answers :{answer},{emoji}')
@@ -362,16 +391,19 @@ async def publish_poll(
 
     for answer in answers:
         poll.add_answer(text=answer)
-    
+
     await interaction.response.send_message(poll=poll)
     return True
+
 
 class State(AgentState):
     interaction: discord.Interaction
 
 
 @tool
-async def publish_discord_message_tool(message: str, state: Annotated[dict, InjectedState], show_message: bool = True):
+async def publish_discord_message_tool(
+    message: str, state: Annotated[dict, InjectedState], show_message: bool = True
+):
     """
     Envoie un message sur Discord via une interaction.
 
@@ -381,7 +413,7 @@ async def publish_discord_message_tool(message: str, state: Annotated[dict, Inje
     :param message: Le message à envoyer sur Discord.
     :param state: Un dictionnaire contenant l'état de l'interaction Discord, incluant l'objet `interaction`.
     :param show_message: Détermine si le message est visible pour tous (`True`) ou seulement pour l'utilisateur (`False`).
-    
+
     :raises KeyError: Si l'interaction n'est pas trouvée dans l'état fourni.
     """
     interaction: discord.Interaction = state["interaction"]
@@ -390,7 +422,9 @@ async def publish_discord_message_tool(message: str, state: Annotated[dict, Inje
     return True
 
 
-async def publish_discord_message(message: str, interaction: discord.Interaction, show_message: bool = True):
+async def publish_discord_message(
+    message: str, interaction: discord.Interaction, show_message: bool = True
+):
     """
     Envoie un message sur Discord via une interaction.
 
@@ -400,7 +434,7 @@ async def publish_discord_message(message: str, interaction: discord.Interaction
     :param message: Le message à envoyer sur Discord.
     :param interaction: contenant l'état de l'interaction Discord
     :param show_message: Détermine si le message est visible pour tous (`True`) ou seulement pour l'utilisateur (`False`).
-    
+
     :raises KeyError: Si l'interaction n'est pas trouvée dans l'état fourni.
     """
     if interaction.response.is_done():
@@ -410,9 +444,7 @@ async def publish_discord_message(message: str, interaction: discord.Interaction
 
 
 @bot.tree.command(name="movie_night")
-@app_commands.describe(
-    movies_list = "la liste des films a proposer"
-)
+@app_commands.describe(movies_list="la liste des films a proposer")
 async def create_poll(
     interaction: discord.Interaction,
     movies_list: str,
@@ -421,7 +453,6 @@ async def create_poll(
     Commande pour organiser une soirée film
     """
     movie_night_role_id = 777544183736565801
-
 
     movie_night_prompt = f"""Crée un sondage engageant pour une soirée film en utilisant les outils à ta disposition.
     Rédige une question courte et conviviale, comme : 'On regarde quoi pour la soirée film ? :)' ou une formulation similaire.
@@ -433,8 +464,7 @@ async def create_poll(
     watchparty ! La soirée film aura lieu {discord_timestamps(prochain_mercredi())} ({discord_timestamps(prochain_mercredi(), format='R')}).'
     Ne publie ce message qu’après avoir posté les synopsis. Suis cet ordre strictement et n’invente pas de date ou d’informations supplémentaires."""
 
-
-    tools = [publish_poll,publish_discord_message_tool, tavily_search_tool]
+    tools = [publish_poll, publish_discord_message_tool, tavily_search_tool]
     tool_node = ToolNode(tools)
     agent = create_react_agent(llm, tools=tool_node, state_schema=State)
 
@@ -448,7 +478,6 @@ async def create_poll(
 
     for msg in respond:
         msg.pretty_print()
-
 
 
 bot.run(discord_token)
