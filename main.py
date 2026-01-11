@@ -20,10 +20,7 @@ from src import *
 from src.imdb import first_result_title_details, prepare_message, test_imdb_api, Movie
 
 # TODO:
-# - chunck commands in functions to reduce size of main.py
-# - pydantic models for imdb responses
 # - update README with new commands
-# - remove the show message parameter and always use ephemeral where needed
 
 from src.display_helper import console, success_style, error_style, warning_style
 
