@@ -27,17 +27,11 @@ from src.utils import (
 from src.imdb import first_result_title_details, prepare_message, test_imdb_api
 
 # TODO:
-# - remove all french comments, messages and docstrings
 # - chunck commands in functions to reduce size of main.py
 # - pydantic models for imdb responses
-# - find a solution to keep console print style accross files
 # - update README with new commands
 
-console = Console()
-# rich theme setup can be done here if needed
-success_style = "bold green"
-error_style = "bold red"
-warning_style = "bold yellow"
+from src.display_helper import console, success_style, error_style, warning_style
 
 PARIS_TZ = ZoneInfo("Europe/Paris")
 

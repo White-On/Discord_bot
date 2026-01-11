@@ -9,6 +9,8 @@ from zoneinfo import ZoneInfo
 from PIL import Image
 from io import BytesIO
 
+from src.display_helper import console, success_style, error_style, warning_style
+
 
 PARIS_TZ = ZoneInfo("Europe/Paris")
 
