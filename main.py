@@ -15,8 +15,8 @@ from src.constants import (
     SELECTION_SENTENCE_LIST,
     MOVIE_NIGHT_ROLE_ID,
 )
-from src.utils import *
-from src.imdb import first_result_title_details, prepare_message, test_imdb_api
+from src import *
+from src.imdb import first_result_title_details, prepare_message, test_imdb_api, Movie
 
 # TODO:
 # - chunck commands in functions to reduce size of main.py
@@ -32,7 +32,7 @@ load_dotenv()
 bot = commands.Bot(command_prefix="/", intents=discord.Intents.all())
 
 
-@bot.tree.command(name="Radom Choice User")
+@bot.tree.command(name="rawom_choice_user")
 @app_commands.describe(
     mentions="List of role mentions and/or user mentions separated by spaces"
 )
@@ -168,9 +168,7 @@ async def poll_decision(
     max_vote = max(total_vote.values())
 
     # look for all answers with the maximum value
-    answers_equality = [
-        key for key, value in total_vote.items() if value == max_vote
-    ]
+    answers_equality = [key for key, value in total_vote.items() if value == max_vote]
 
     # coin flip if there is equality
     coin_flip_answer = random.choice(answers_equality)
@@ -206,9 +204,7 @@ async def movie_night(
         )
         return
 
-    list_movies = [
-        movie.strip() for movie in movies_list.split("|") if movie.strip()
-    ]
+    list_movies = [movie.strip() for movie in movies_list.split("|") if movie.strip()]
 
     if not list_movies:
         interaction.response.send_message(
@@ -250,30 +246,22 @@ async def movie_night(
             for movie_title in list_movies:
                 console.print(f"[cyan]→[/cyan] Getting info for movie: {movie_title}")
                 # Function over here
-                info = await first_result_title_details(
-                    movie_title
-                ) 
+                movie_info = await first_result_title_details(movie_title)
 
-                if not info or "error" in info:
-                    console.print(f"No info found for movie: {movie_title}")
+                if not movie_info or "error" in movie_info:
+                    console.print(
+                        f"Error retrieving movie info for '{movie_title}': {movie_info.get('error', 'Unknown error')}",
+                        style=warning_style,
+                    )
                     continue
 
-                message, embed = prepare_message(info)
+                message, embed = prepare_message(movie_info)
                 if message and embed:
-                    await interaction.followup.send(
-                        embed=embed, ephemeral=False
-                    )
+                    await interaction.followup.send(embed=embed, ephemeral=False)
 
                 # Collect image URL
-                primary_image = info.get("primaryImage")
-                if primary_image:
-                    image_url = (
-                        primary_image.get("url")
-                        if isinstance(primary_image, dict)
-                        else primary_image
-                    )
-                    if image_url:
-                        img_url_list.append(image_url)
+                if movie_info.image_url:
+                    img_url_list.append(movie_info.image_url)
 
     reminder_message = (
         f"## Hey <@&{MOVIE_NIGHT_ROLE_ID}> ! Don't forget to vote for the movie night!\n"

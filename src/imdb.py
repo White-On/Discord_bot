@@ -6,6 +6,8 @@ import requests
 import asyncio
 from discord import Embed
 from rich.console import Console
+from pydantic import BaseModel
+from typing import Any
 
 console = Console()
 
@@ -13,6 +15,16 @@ console = Console()
 MAX_RETRIES = 3
 RETRY_DELAY = 60  # seconds (will exponentially increase)
 RATE_LIMIT_STATUS_CODE = 429
+
+
+class Movie(BaseModel):
+    id: str
+    primaryTitle: str
+    originalTitle: str
+    theme: list[str]
+    plot: str
+    image_url: str
+    rating: Any
 
 
 async def _make_request_with_retry(
@@ -40,18 +52,18 @@ async def _make_request_with_retry(
                 if attempt < max_retries - 1:
                     wait_time = RETRY_DELAY * (2**attempt)
                     console.print(
-                        f"[yellow]⚠ Rate limit hit. Waiting {wait_time}s before retry (attempt {attempt + 1}/{max_retries})[/yellow]"
+                        f"Rate limit hit. Waiting {wait_time}s before retry (attempt {attempt + 1}/{max_retries})"
                     )
                     await asyncio.sleep(wait_time)  # Non-blocking sleep
                     continue
                 else:
                     console.print(
-                        f"[red]✗ API rate limit exceeded after {max_retries} retries[/red]"
+                        f"API rate limit exceeded after {max_retries} retries"
                     )
                     return {"error": "API rate limit exceeded after multiple retries"}
             else:
                 console.print(
-                    f"[red]✗ API request failed with status code {response.status_code}[/red]"
+                    f"API request failed with status code {response.status_code}"
                 )
                 return {
                     "error": f"Request failed with status code {response.status_code}"
@@ -61,28 +73,24 @@ async def _make_request_with_retry(
             if attempt < max_retries - 1:
                 wait_time = RETRY_DELAY * (2**attempt)
                 console.print(
-                    f"[yellow]⚠ Request timeout. Waiting {wait_time}s before retry (attempt {attempt + 1}/{max_retries})[/yellow]"
+                    f"Request timeout. Waiting {wait_time}s before retry (attempt {attempt + 1}/{max_retries})"
                 )
                 await asyncio.sleep(wait_time)  # Non-blocking sleep
                 continue
             else:
-                console.print(
-                    f"[red]✗ Request timeout after {max_retries} retries[/red]"
-                )
+                console.print(f"Request timeout after {max_retries} retries")
                 return {"error": "Request timeout after multiple retries"}
 
         except requests.exceptions.RequestException as e:
             if attempt < max_retries - 1:
                 wait_time = RETRY_DELAY * (2**attempt)
                 console.print(
-                    f"[yellow]⚠ Request error: {str(e)}. Waiting {wait_time}s before retry (attempt {attempt + 1}/{max_retries})[/yellow]"
+                    f"Request error: {str(e)}. Waiting {wait_time}s before retry (attempt {attempt + 1}/{max_retries})"
                 )
                 await asyncio.sleep(wait_time)  # Non-blocking sleep
                 continue
             else:
-                console.print(
-                    f"[red]✗ Request failed after {max_retries} retries: {str(e)}[/red]"
-                )
+                console.print(f"Request failed after {max_retries} retries: {str(e)}")
                 return {"error": f"Request failed: {str(e)}"}
 
     return {"error": "All retry attempts failed"}
@@ -101,70 +109,69 @@ async def get_imdb_title_details(title_id: str):
     return await _make_request_with_retry(url)
 
 
-async def first_result_title_details(query: str):
+async def first_result_title_details(movie_title: str):
     """Get the first search result's details from IMDB"""
-    search_results = await search_imdb_titles(query)
+    search_results = await search_imdb_titles(movie_title)
     if "titles" in search_results and len(search_results["titles"]) > 0:
         first_title_id = search_results["titles"][0]["id"]
-        return await get_imdb_title_details(first_title_id)
+        response = await get_imdb_title_details(first_title_id)
+        if "error" in response:
+            return None
+        return Movie(
+            id=response.get("id", ""),
+            primaryTitle=response.get("primaryTitle", ""),
+            originalTitle=response.get("originalTitle", ""),
+            theme=response.get("theme", []),
+            plot=response.get("plot", ""),
+            image_url=(
+                response.get("primaryImage", {}).get("url", "")
+                if response.get("primaryImage")
+                else ""
+            ),
+            rating=response.get("ratings", {}),
+        )
     else:
-        console.print(f"[yellow]⚠ No titles found for query: {query}[/yellow]")
+        console.print(f"No titles found for query: {movie_title}")
         return {"error": "No titles found for the given query."}
 
 
-def prepare_message(title_details: dict):
+def prepare_message(movie: Movie):
     """Prepare a Discord message with movie information"""
-    if "error" in title_details:
-        console.print(
-            f"[red]✗ Error retrieving details:[/red] {title_details['error']}"
-        )
-        return None, None
+    genres = movie.get("genres", [])
+    genres = [
+        genre if genre != "Horror" else "**:warning: Horror :warning:**"
+        for genre in genres
+    ]
 
-    try:
-        genres = title_details.get("genres", [])
-        genres = [
-            genre if genre != "Horror" else "**:warning: Horror :warning:**"
-            for genre in genres
-        ]
+    message = f"## {movie.primaryTitle}\n"
+    message += f"Plot: ||*{movie.plot}*||\n"
 
-        message = f"## {title_details.get('primaryTitle', 'Unknown')}\n"
-        message += f"Plot: ||*{title_details.get('plot', 'N/A')}*||\n"
+    rating = movie.rating
+    agg_rating = (
+        rating.get("aggregateRating", "N/A") if isinstance(rating, dict) else "N/A"
+    )
+    message += f"Rating: **{agg_rating}** (IMDB rating, >7 is usually good)\n"
+    message += f"Genres: {', '.join(genres) if genres else 'N/A'}\n"
 
-        rating = title_details.get("rating", {})
-        agg_rating = (
-            rating.get("aggregateRating", "N/A") if isinstance(rating, dict) else "N/A"
-        )
-        message += f"Rating: **{agg_rating}** (IMDB rating, >7 is usually good)\n"
-        message += f"Genres: {', '.join(genres) if genres else 'N/A'}\n"
+    # calculate the color based on rating
+    if agg_rating != "N/A":
+        rating_value = float(agg_rating)
+        if rating_value >= 7.0:
+            color = 0x00FF00  # Green
+        elif 5.0 <= rating_value < 7.0:
+            color = 0xFFFF00  # Yellow
+        else:
+            color = 0xFF0000  # Red
 
-        # calculate the color based on rating
-        if agg_rating != "N/A":
-            rating_value = float(agg_rating)
-            if rating_value >= 7.0:
-                color = 0x00FF00  # Green
-            elif 5.0 <= rating_value < 7.0:
-                color = 0xFFFF00  # Yellow
-            else:
-                color = 0xFF0000  # Red
+    embed = Embed()
+    embed.description = message
+    embed.color = color
 
-        embed = Embed()
-        embed.description = message
-        embed.color = color
-        primary_image = title_details.get("primaryImage")
-        if primary_image:
-            image_url = (
-                primary_image.get("url")
-                if isinstance(primary_image, dict)
-                else primary_image
-            )
-            if image_url:
-                embed.set_image(url=image_url)
+    primary_image = movie.image_url
+    if primary_image:
+        embed.set_image(url=primary_image)
 
-        return message, embed
-
-    except Exception as e:
-        console.print(f"[red]✗ Error preparing message:[/red] {e}")
-        return None, None
+    return message, embed
 
 
 async def test_imdb_api() -> tuple[bool, str | None]:
@@ -180,7 +187,7 @@ async def test_imdb_api() -> tuple[bool, str | None]:
 
     # _make_request_with_retry returns a dict with an "error" key on failures
     if isinstance(res, dict) and res.get("error"):
-        console.print(f"[red]✗ IMDB API test failed: {res.get('error')}[/red]")
+        console.print(f"IMDB API test failed: {res.get('error')}")
         return False, res.get("error")
 
     console.print("[green]✓ IMDB API reachable[/green]")

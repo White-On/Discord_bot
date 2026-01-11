@@ -36,13 +36,11 @@ def next_wednesday(date_reference: datetime = None) -> datetime:
     """
     date_reference = date_reference if date_reference else datetime.today()
 
-    # Calcul des jours à ajouter pour atteindre mercredi (mercredi = 2)
-    jours_a_ajouter = (
-        2 - date_reference.weekday()
-    ) % 7 or 7  # Assure le mercredi suivant
+    # Calculate days to add to reach next Wednesday
+    days_to_add = (2 - date_reference.weekday()) % 7 or 7
 
     return datetime.combine(
-        date_reference.date() + timedelta(days=jours_a_ajouter),
+        date_reference.date() + timedelta(days=days_to_add),
         datetime.min.time().replace(hour=20, minute=30),
     )
 
@@ -60,7 +58,6 @@ def discord_timestamps(date: datetime, format: str = "f") -> str:
 
     timestamp = int(date.timestamp())  # Convertir en timestamp Unix
     return f"<t:{timestamp}:{format}>"
-
 
 
 def images_urls_to_bytes_horizontal(
