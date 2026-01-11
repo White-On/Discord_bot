@@ -20,8 +20,7 @@ RATE_LIMIT_STATUS_CODE = 429
 class Movie(BaseModel):
     id: str
     primaryTitle: str
-    originalTitle: str
-    theme: list[str]
+    genres: list[str]
     plot: str
     image_url: str
     rating: Any
@@ -120,15 +119,14 @@ async def first_result_title_details(movie_title: str):
         return Movie(
             id=response.get("id", ""),
             primaryTitle=response.get("primaryTitle", ""),
-            originalTitle=response.get("originalTitle", ""),
-            theme=response.get("theme", ["N/A"]),
+            genres=response.get("genres", ["N/A"]),
             plot=response.get("plot", "N/A"),
             image_url=(
                 response.get("primaryImage", {}).get("url", "")
                 if response.get("primaryImage")
                 else ""
             ),
-            rating=response.get("ratings", {}),
+            rating=response.get("rating", {}).get("aggregateRating", "N/A"),
         )
     else:
         console.print(f"No titles found for query: {movie_title}")
@@ -137,7 +135,7 @@ async def first_result_title_details(movie_title: str):
 
 def prepare_message(movie: Movie):
     """Prepare a Discord message with movie information"""
-    genres = movie.theme
+    genres = movie.genres
     # Highlight Horror genre
     color = 0x0000FF  # Default color (Blue)
     genres = [
@@ -149,15 +147,13 @@ def prepare_message(movie: Movie):
     message += f"Plot: ||*{movie.plot}*||\n"
 
     rating = movie.rating
-    agg_rating = (
-        rating.get("aggregateRating", "N/A") if isinstance(rating, dict) else "N/A"
-    )
-    message += f"Rating: **{agg_rating}** (IMDB rating, >7 is usually good)\n"
+
+    message += f"Rating: **{rating}** (IMDB rating, >7 is usually good)\n"
     message += f"Genres: {', '.join(genres) if genres else 'N/A'}\n"
 
     # calculate the color based on rating
-    if agg_rating != "N/A":
-        rating_value = float(agg_rating)
+    if rating != "N/A":
+        rating_value = float(rating)
         if rating_value >= 7.0:
             color = 0x00FF00  # Green
         elif 5.0 <= rating_value < 7.0:
