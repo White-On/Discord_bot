@@ -121,8 +121,8 @@ async def first_result_title_details(movie_title: str):
             id=response.get("id", ""),
             primaryTitle=response.get("primaryTitle", ""),
             originalTitle=response.get("originalTitle", ""),
-            theme=response.get("theme", []),
-            plot=response.get("plot", ""),
+            theme=response.get("theme", ["N/A"]),
+            plot=response.get("plot", "N/A"),
             image_url=(
                 response.get("primaryImage", {}).get("url", "")
                 if response.get("primaryImage")
@@ -137,7 +137,9 @@ async def first_result_title_details(movie_title: str):
 
 def prepare_message(movie: Movie):
     """Prepare a Discord message with movie information"""
-    genres = movie.get("genres", [])
+    genres = movie.theme
+    # Highlight Horror genre
+    color = 0x0000FF  # Default color (Blue)
     genres = [
         genre if genre != "Horror" else "**:warning: Horror :warning:**"
         for genre in genres

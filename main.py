@@ -14,6 +14,7 @@ from src.constants import (
     ENTICIPATION_SENTENCE_LIST,
     SELECTION_SENTENCE_LIST,
     MOVIE_NIGHT_ROLE_ID,
+    VOICE_CHANNEL_ID,
 )
 from src import *
 from src.imdb import first_result_title_details, prepare_message, test_imdb_api, Movie
@@ -36,11 +37,8 @@ bot = commands.Bot(command_prefix="/", intents=discord.Intents.all())
 @app_commands.describe(
     mentions="List of role mentions and/or user mentions separated by spaces"
 )
-@app_commands.describe(
-    show_message="Display the message to everyone (by default, the message will only be visible to you)"
-)
 async def random_choice_user(
-    interaction: discord.Interaction, mentions: str, show_message: bool = True
+    interaction: discord.Interaction, mentions: str
 ):
     """
     Randomly select a user from a list of role mentions and/or user mentions.
@@ -84,7 +82,6 @@ async def random_choice_user(
     # Send a preparation message
     await interaction.response.send_message(
         random_preparation_sentence,
-        ephemeral=not show_message,
     )
 
     # Wait for 3 seconds before announcing the selected user
@@ -92,8 +89,8 @@ async def random_choice_user(
 
     # Send a response with all selected members
     await interaction.followup.send(
-        f"{random_selection_sentence} <@{selected_member}>!",
-        ephemeral=not show_message,
+        f"{random_selection_sentence}".format(nom=f"<@{selected_member}>!"),
+        allowed_mentions=AllowedMentions(users=True, roles=False, everyone=False),
     )
 
     console.print(f"Random user selected: {selected_member}")
@@ -101,11 +98,8 @@ async def random_choice_user(
 
 @bot.tree.command(name="poll_decision")
 @app_commands.describe(poll_message_id="ID of the poll message to evaluate")
-@app_commands.describe(
-    show_message="Display the message to everyone (by default, the message will only be visible to you)"
-)
 async def poll_decision(
-    interaction: discord.Interaction, poll_message_id: str, show_message: bool = True
+    interaction: discord.Interaction, poll_message_id: str
 ):
     """
     Get the poll results and make a random choice in case of a tie.
@@ -121,7 +115,7 @@ async def poll_decision(
     if not poll_message_id.isdigit():
         await interaction.response.send_message(
             "Error: Poll message ID must be a numeric value.",
-            ephemeral=not show_message,
+            ephemeral=True,
         )
 
     # Get the poll message
@@ -130,7 +124,7 @@ async def poll_decision(
     except discord.NotFound:
         await interaction.response.send_message(
             f"Error: Message with ID {poll_message_id} not found.",
-            ephemeral=not show_message,
+            ephemeral=True,
         )
         console.print(f"Message not found: {poll_message_id}", style=error_style)
         return
@@ -139,7 +133,7 @@ async def poll_decision(
     if not poll_message.poll:
         await interaction.response.send_message(
             "Error: The specified message does not contain a poll.",
-            ephemeral=not show_message,
+            ephemeral=True,
         )
         return
 
@@ -150,7 +144,7 @@ async def poll_decision(
     if not poll.is_finalized():
         await interaction.response.send_message(
             "Error: The poll is not finalized yet.",
-            ephemeral=not show_message,
+            ephemeral=True,
         )
         return
 
@@ -158,7 +152,7 @@ async def poll_decision(
     if not poll.answers:
         await interaction.response.send_message(
             "Error: The poll has no answers.",
-            ephemeral=not show_message,
+            ephemeral=True,
         )
         return
 
@@ -175,8 +169,7 @@ async def poll_decision(
     console.print(f"Poll decision made: {coin_flip_answer}")
 
     await interaction.response.send_message(
-        f"# To resolve the tie found in the poll *{poll.question}*, I randomly chose to break the tie and therefore **{coin_flip_answer}** is your final choice!",
-        ephemeral=not show_message,
+        f"## To resolve the tie found in the poll *{poll.question}*, I randomly chose to break the tie and therefore **{coin_flip_answer}** is your final choice!",
     )
 
 
@@ -274,11 +267,9 @@ async def movie_night(
         allowed_mentions=mention,
     )
 
-    # voice_channel_id = 585547683389898756
-    voice_channel_id = 667070663038861312
-    voice_channel = bot.get_channel(voice_channel_id)
+    voice_channel = bot.get_channel(VOICE_CHANNEL_ID)
     if voice_channel is None:
-        console.print(f"Voice channel with ID {voice_channel_id} not found")
+        console.print(f"Voice channel with ID {VOICE_CHANNEL_ID} not found")
         return True
 
     description = (
