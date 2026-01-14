@@ -30,7 +30,7 @@ load_dotenv()
 bot = commands.Bot(command_prefix="/", intents=discord.Intents.all())
 
 
-@bot.tree.command(name="rawom_choice_user")
+@bot.tree.command(name="random_choice_user")
 @app_commands.describe(
     mentions="List of role mentions and/or user mentions separated by spaces"
 )
