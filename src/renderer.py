@@ -36,8 +36,7 @@ async def generate_image(rendered_file_path: Path, size: tuple[int, int] = (1000
         browser = await p.chromium.launch()
         page = await browser.new_page(viewport={"width": size[0], "height": size[1]})
 
-        path = f"{rendered_file_path}"
-        await page.goto(path)
+        await page.goto(rendered_file_path.absolute().as_uri())
 
         await page.wait_for_load_state("networkidle")
 

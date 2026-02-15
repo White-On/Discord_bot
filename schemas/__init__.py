@@ -1,1 +1,1 @@
-from players import Player, LeaderboardPlayer
+from schemas.players import BasePlayer, LeaderboardPlayer

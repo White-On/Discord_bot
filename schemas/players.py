@@ -4,13 +4,10 @@ from pydantic import BaseModel
 class BasePlayer(BaseModel):
     name: str
     tag: str
-    discord_id: str
+    discord_id: int
 
 class LeaderboardPlayer(BasePlayer):
-    rank: int
-    region: str
-    name: str
-    rank_name: str
+    rank: str
     rr: int
     winrate: float
     games: int
