@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Community Leaderboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../static/style.css">
+
+</head>
+<body>
+  <div class="valorant-logo">
+    <img src="../assets/V_Lockup_Horizontal_Neg_Red.png" alt="Valorant Logo">
+  </div>
+  <div class="container">
+    <div class="header">
+      <h1>Unranked Leaderboard</h1>
+      <p>Top performing members</p>
+    </div>
+
+    <div class="podium">
+      <!-- Second -->
+      <div class="podium-card second">
+        <img class="banner" src="{{ second_player.card }}" alt="">
+        <div class="podium-content">
+          <img class="avatar" src="{{ second_player.avatar }}" alt="">
+          <div class="rank">#2</div>
+          <div class="name">{{ second_player.name }}</div>
+          <div class="score">{{ second_player.rank }} ({{ second_player.rr }} RR)</div>
+        </div>
+      </div>
+
+      <!-- First -->
+      <div class="podium-card first">
+        <img class="banner" src="{{ first_player.card }}" alt="">
+        <div class="crown">👑</div>
+        <div class="podium-content">
+          <img class="avatar" src="{{ first_player.avatar }}" alt="">
+          <div class="rank">#1</div>
+          <div class="name">{{ first_player.name }}</div>
+          <div class="score">{{ first_player.rank }} ({{ first_player.rr }} RR)</div>
+        </div>
+      </div>
+
+      <!-- Third -->
+      <div class="podium-card third">
+        <img class="banner" src="{{ third_player.card }}" alt="">
+        <div class="podium-content">
+          <img class="avatar" src="{{ third_player.avatar }}" alt="">
+          <div class="rank">#3</div>
+          <div class="name">{{ third_player.name }}</div>
+          <div class="score">{{ third_player.rank }} ({{ third_player.rr }} RR)</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="list">
+        {% for player in rest_players %}
+      <div class="list-card">
+        <div class="list-left">
+          <div class="list-rank">#{{ player.rank_leaderboard }}</div>
+          <div class="list-avatar"><img src="{{ player.avatar }}" alt="Avatar"></div>
+          <div class="list-name">{{ player.name }}</div>
+        </div>
+        <div class="list-score">{{ player.rank }} ({{ player.rr }} RR)</div>
+      </div>
+        {% endfor %}
+    </div>
+  </div>
+</body>
+</html>

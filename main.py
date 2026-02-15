@@ -2,7 +2,9 @@ import discord
 import os
 import random
 from datetime import datetime, timedelta
+import time
 from zoneinfo import ZoneInfo
+from pathlib import Path
 
 from dotenv import load_dotenv
 from discord import app_commands, Poll, EntityType, AllowedMentions
@@ -15,14 +17,16 @@ from src.constants import (
     SELECTION_SENTENCE_LIST,
     MOVIE_NIGHT_ROLE_ID,
     VOICE_CHANNEL_ID,
+    PLAYERS_VALORANT_MAPPING,
 )
 from src import *
 from src.imdb import first_result_title_details, prepare_message, test_imdb_api, Movie
+from src.renderer import render_html, generate_image
+from schemas import LeaderboardPlayer
 
-# TODO:
-# - update README with new commands
 
 from src.display_helper import console, success_style, error_style, warning_style
+from src.valorant import RiotAPIClient
 
 PARIS_TZ = ZoneInfo("Europe/Paris")
 
@@ -291,6 +295,71 @@ async def movie_night(
         channel=voice_channel,
     )
     return True
+
+async def get_account_info(member: discord.Member) -> dict | None:
+    """
+    Simulate fetching account info for a member from a database.
+    """
+    print(f"Fetching account info for member: {member.display_name}")
+    for attribute in dir(member):
+        if not attribute.startswith("_"):
+            print(f" - {attribute}: {getattr(member, attribute)}")
+
+    return member
+
+
+@bot.tree.command(name="ranking_valorant")
+async def ranking_valorant(
+    interaction: discord.Interaction,
+):
+    """
+    Command to display the Valorant ranking leaderboard.
+    - Fetch player data from Riot API
+    - Build a leaderboard embed
+    - Send the embed as a response
+    """
+    await interaction.response.defer()
+    riot_client = RiotAPIClient()
+    leaderboard_players: list[dict] = []
+    console.print("Fetching player data from Riot API...")
+    with console.status("[cyan]Fetching player data from Riot API..."):
+        for player in PLAYERS_VALORANT_MAPPING:
+            try:
+                player_info = riot_client.get_rank_carrier(player["name"], "eu",player["tag"], "pc").get("data", {})
+                console.print(f"Fetched data for {player['name']}: {player_info}")
+                nb_games = sum(season.get("games", 0) for season in player_info.get("seasonal", []))
+                nb_win = sum(season.get("wins", 0) for season in player_info.get("seasonal", []))
+                leaderboard_players.append({
+                    "name": player_info.get("account", {}).get("name", player["name"]),
+                    "rank": player_info.get("current", {}).get("tier", {}).get("name", "N/A"),
+                    "rr": player_info.get("current", {}).get("rr", "N/A"),
+                    "winrate": (nb_win / nb_games * 100) if nb_games > 0 else 0,
+                    "games": nb_games,
+                    "rank_id": player_info.get("current", {}).get("tier", {}).get("id", "0"),
+                    "discord_id": player["discord_id"],
+                    "tag": player["tag"],
+                })
+            except Exception as e:
+                console.print(f"Error fetching data for {player['name']}: {e}", style=error_style)
+    leaderboard_players.sort(key=lambda x: (x["rank_id"], x["rr"]), reverse=True)
+    for player in leaderboard_players:
+        # Get the player's discord member object        
+        member = interaction.guild.get_member(player["discord_id"])
+        if member:
+            player["avatar"] = str(member.display_avatar.url)
+        else:
+            player["avatar"] = None
+        valorant_account = riot_client.get_player_info(player["name"], player["tag"])
+        player["card"] = valorant_account.get("card", {}).get("large", None)
+    
+    leaderboard_players = [LeaderboardPlayer(**player) for player in leaderboard_players]
+    console.print(leaderboard_players)
+    templates_path = Path("templates")
+    render_path = Path("rendered")
+    rendered_file_path = render_html(templates_path, render_path, leaderboard_players, "Acte 2")
+    
+    leaderboard_img_path = await generate_image(rendered_file_path)
+    await interaction.followup.send(file=discord.File(leaderboard_img_path), ephemeral=False)
 
 
 @bot.event

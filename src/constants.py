@@ -23,3 +23,17 @@ MOVIE_NIGHT_ROLE_ID = 777544183736565801 # Real
 
 # VOICE_CHANNEL_ID = 585547683389898756 # Test
 VOICE_CHANNEL_ID = 667070663038861312 # Real
+
+PLAYERS_VALORANT_MAPPING = [
+            {"name": "White Chroma", "tag": "EUW", "discord_id": 295236862207852544},
+            {"name": "Ayromme", "tag": "EUW", "discord_id": 284779124382236672},
+            {"name": "Bibiche237", "tag": "EUW", "discord_id": 290918846972559360},
+            {"name": "Electro237", "tag": "EUW", "discord_id": 290918846972559360},
+            {"name": "mis0umis0u", "tag": "EUW", "discord_id": 282566373761220609},
+            {"name": "Nyvesrath", "tag": "5221", "discord_id": 221658647862837248},
+            {"name": "Pirotikoz", "tag": "EUW", "discord_id": 221659694547206144},
+            {"name": "Rikuindarkness", "tag": "EUW", "discord_id": 297066540371673088},
+            {"name": "Swarthan", "tag": "WEU", "discord_id": 291973344662781952},
+            {"name": "Swarthon", "tag": "WEU", "discord_id": 291973344662781952},
+            {"name": "The Paintress", "tag": "airis", "discord_id": 422156168325103618},
+        ]
