@@ -27,6 +27,9 @@ from schemas import LeaderboardPlayer
 
 from src.display_helper import console, success_style, error_style, warning_style
 from src.valorant import RiotAPIClient
+from PIL import Image, ImageDraw, ImageFont
+from io import BytesIO
+import requests
 
 PARIS_TZ = ZoneInfo("Europe/Paris")
 
@@ -361,10 +364,60 @@ async def ranking_valorant(
     leaderboard_img_path = await generate_image(rendered_file_path)
     await interaction.followup.send(file=discord.File(leaderboard_img_path), ephemeral=False)
 
-@bot.tree.command(name="test_send_gif")
-async def test_send_gif(interaction: discord.Interaction):
+@bot.tree.command(name="pull_player")
+async def pull_player(interaction: discord.Interaction):
     await interaction.response.defer()
-    gif_path = Path("assets/5_star_10_pull.gif")
+
+    assets_path = Path("assets")
+    # Charger le GIF
+    gif = Image.open(assets_path / "5_star_10_pull.gif")
+    end_frame = Image.open(assets_path / "chosen_player.png")
+    font_path = assets_path / "zh-cn.ttf"
+    gif_path = assets_path / "output.gif"
+    player_name = interaction.user.display_name
+    response = requests.get(interaction.user.display_avatar.with_format("png").url)
+    player_icon = (Image.open(BytesIO(response.content)) 
+        .convert("RGBA") 
+        .resize((100, 100)))
+
+    width, height = end_frame.size
+
+    draw = ImageDraw.Draw(end_frame)
+    font = ImageFont.truetype(font_path, size=24)
+    draw.text((125, 220), player_name, fill=(255, 255, 255), font=font, anchor="mm")
+    end_frame.paste(player_icon, (int(width/2 - player_icon.width/2) , int(height/2 - player_icon.height/2)), player_icon)
+
+    frames = []
+    try:
+        while True:
+            frame = gif.copy()
+            frames.append(frame)
+            gif.seek(len(frames))  # frame suivante
+    except EOFError:
+        pass
+
+    # Taille de référence
+    width, height = frames[0].size
+
+    # Créer de nouvelles frames programmatiquement
+    new_frames = []
+    nb_frames_to_add = 30
+    for i in range(nb_frames_to_add):
+        fade_factor = min(i / (nb_frames_to_add / 3) , 1)
+        faded_frame = Image.blend(frames[-1], end_frame, alpha=fade_factor)
+        new_frames.append(faded_frame)
+
+    # Ajouter les nouvelles frames à la fin
+    all_frames = frames + new_frames
+
+    # Sauvegarder le nouveau GIF
+    all_frames[0].save(
+        gif_path,
+        save_all=True,
+        append_images=all_frames[1:],
+        duration=gif.info.get("duration", 100),
+        loop=None
+    )
     await interaction.followup.send(file=discord.File(gif_path), ephemeral=False)
 
 @bot.event
