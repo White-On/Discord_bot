@@ -361,6 +361,11 @@ async def ranking_valorant(
     leaderboard_img_path = await generate_image(rendered_file_path)
     await interaction.followup.send(file=discord.File(leaderboard_img_path), ephemeral=False)
 
+@bot.tree.command(name="test_send_gif")
+async def test_send_gif(interaction: discord.Interaction):
+    await interaction.response.defer()
+    gif_path = Path("assets/5_star_10_pull.gif")
+    await interaction.followup.send(file=discord.File(gif_path), ephemeral=False)
 
 @bot.event
 async def on_ready():
