@@ -99,6 +99,40 @@ async def random_choice_user(
 
     console.print(f"Random user selected: {selected_member}")
 
+def random_user(interaction: discord.Interaction, mentions: str) -> int | None:
+    """
+    Randomly select a user from a list of role mentions and/or user mentions.
+    - Parse mentions to get user IDs
+    - Randomly select one user
+    - Return the selected user's ID
+    """
+    # Validate input
+    if not mentions or not mentions.strip():
+        console.print("No mentions provided", style=warning_style)
+        return None
+
+    # Extract mentions
+    mentions = mentions.split()
+    members_mentions, role_mentions = parse_mentions(
+        mentions, interaction.guild.members
+    )
+
+    # Process role mentions to get user IDs
+    for role_mention in role_mentions:
+        members_in_role = fetch_user_from_role(role_mention, interaction.guild.members)
+        members_mentions += members_in_role
+
+    members_mentions = list(set([int(user_id) for user_id in members_mentions]))
+
+    # Check if any members were selected
+    if not members_mentions:
+        console.print("No members found for the provided mentions", style=warning_style)
+        return None
+
+    # Randomly select a member
+    selected_member = random.choice(members_mentions)
+    console.print(f"Random user selected: {selected_member}")
+    return selected_member
 
 @bot.tree.command(name="poll_decision")
 @app_commands.describe(poll_message_id="ID of the poll message to evaluate")
@@ -365,7 +399,8 @@ async def ranking_valorant(
     await interaction.followup.send(file=discord.File(leaderboard_img_path), ephemeral=False)
 
 @bot.tree.command(name="pull_player")
-async def pull_player(interaction: discord.Interaction):
+@app_commands.describe(mentions="List of role mentions and/or user mentions separated by spaces")
+async def pull_player(interaction: discord.Interaction, mentions: str):
     await interaction.response.defer()
 
     assets_path = Path("assets")
@@ -374,11 +409,13 @@ async def pull_player(interaction: discord.Interaction):
     end_frame = Image.open(assets_path / "chosen_player.png")
     font_path = assets_path / "zh-cn.ttf"
     gif_path = assets_path / "output.gif"
-    player_name = interaction.user.display_name
-    response = requests.get(interaction.user.display_avatar.with_format("png").url)
+    player = random_user(interaction, mentions)
+    player = interaction.guild.get_member(player) if player else None
+    player_name = player.display_name if player else "Unknown Player"
+    response = requests.get(player.display_avatar.with_format("png").url)
     player_icon = (Image.open(BytesIO(response.content)) 
         .convert("RGBA") 
-        .resize((100, 100)))
+        .resize((150, 150)))
 
     width, height = end_frame.size
 
@@ -401,9 +438,10 @@ async def pull_player(interaction: discord.Interaction):
 
     # Créer de nouvelles frames programmatiquement
     new_frames = []
-    nb_frames_to_add = 30
+    nb_frames_to_add = 10
     for i in range(nb_frames_to_add):
-        fade_factor = min(i / (nb_frames_to_add / 3) , 1)
+        # fade_factor = min(i / (nb_frames_to_add / 3) , 1)
+        fade_factor = i / nb_frames_to_add
         faded_frame = Image.blend(frames[-1], end_frame, alpha=fade_factor)
         new_frames.append(faded_frame)
 
