@@ -17,6 +17,7 @@ from src.constants import (
     MOVIE_NIGHT_ROLE_ID,
     VOICE_CHANNEL_ID,
     PLAYERS_VALORANT_MAPPING,
+    MOVIE_NIGHT_CHANNEL_ID,
 )
 from src import *
 from src.imdb import first_result_title_details, prepare_message, test_imdb_api
@@ -248,11 +249,12 @@ async def movie_night(
         console.print(f"Voice channel with ID {VOICE_CHANNEL_ID} not found")
         return True
 
+    poll_link = f"https://discord.com/channels/{interaction.guild.id}/{interaction.channel.id}/{poll_return.id}"
     description = (
         "Join us for a movie night! The movie will be chosen based on votes!\n"
         "Don't forget to vote in the poll! 🍿🎬\n"
         "You can vote directly in the poll message here: "
-        f"https://discord.com/channels/{interaction.guild.id}/{interaction.channel.id}/{poll_return.id}"
+        f"{poll_link}"
     )
 
     # Limit to 8 images for the event banner
@@ -269,6 +271,13 @@ async def movie_night(
         image=image_bytes,
         channel=voice_channel,
     )
+
+    # Send a messsage in the movie night channel to announce the creation of the event
+    movie_night_channel = bot.get_channel(MOVIE_NIGHT_CHANNEL_ID)
+    event_link = f"https://discord.com/events/{interaction.guild.id}/{interaction.guild.scheduled_events[-1].id}"
+    if movie_night_channel:
+        await movie_night_channel.send(f"An you can find the event here: {event_link}")
+
     return True
 
 
@@ -328,6 +337,7 @@ async def ranking_valorant(
 @bot.tree.command(name="pull_player")
 @app_commands.describe(mentions="List of role mentions and/or user mentions separated by spaces")
 async def pull_player(interaction: discord.Interaction, mentions: str):
+    """Pull a random player and create a GIF with their avatar and name."""
     await interaction.response.defer()
 
     assets_path = Path("assets")
