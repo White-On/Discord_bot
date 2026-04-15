@@ -337,6 +337,7 @@ async def ranking_valorant(
 @bot.tree.command(name="pull_player")
 @app_commands.describe(mentions="List of role mentions and/or user mentions separated by spaces")
 async def pull_player(interaction: discord.Interaction, mentions: str):
+    """Pull a random player and create a GIF with their avatar and name."""
     await interaction.response.defer()
 
     assets_path = Path("assets")
