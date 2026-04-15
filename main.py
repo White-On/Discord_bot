@@ -329,6 +329,8 @@ async def ranking_valorant(
     console.print(leaderboard_players)
     templates_path = Path("templates")
     render_path = Path("rendered")
+    if not render_path.exists():
+        render_path.mkdir()
     rendered_file_path = render_html(templates_path, render_path, leaderboard_players, "Acte 2")
     
     leaderboard_img_path = await generate_image(rendered_file_path)
