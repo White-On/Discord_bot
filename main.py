@@ -2,7 +2,6 @@ import discord
 import os
 import random
 from datetime import datetime, timedelta
-import time
 from zoneinfo import ZoneInfo
 from pathlib import Path
 
@@ -20,8 +19,9 @@ from src.constants import (
     PLAYERS_VALORANT_MAPPING,
 )
 from src import *
-from src.imdb import first_result_title_details, prepare_message, test_imdb_api, Movie
+from src.imdb import first_result_title_details, prepare_message, test_imdb_api
 from src.renderer import render_html, generate_image
+from src.discord_utils import next_wednesday, discord_timestamps, images_urls_to_bytes_horizontal, random_user
 from schemas import LeaderboardPlayer
 
 
@@ -50,36 +50,9 @@ async def random_choice_user(
     - Randomly select one user
     - Send a message announcing the selected user
     """
-    # Validate input
-    if not mentions or not mentions.strip():
-        await interaction.response.send_message(
-            "You must provide at least one mention (role or user).", ephemeral=True
-        )
-        return
-
-    # Extract mentions
-    mentions = mentions.split()
-    members_mentions, role_mentions = parse_mentions(
-        mentions, interaction.guild.members
-    )
-
-    # Process role mentions to get user IDs
-    for role_mention in role_mentions:
-        members_in_role = fetch_user_from_role(role_mention, interaction.guild.members)
-        members_mentions += members_in_role
-
-    members_mentions = list(set([int(user_id) for user_id in members_mentions]))
-
-    # Check if any members were selected
-    if not members_mentions:
-        console.print("No members found for the provided mentions", style=warning_style)
-        await interaction.response.send_message(
-            "No members found for the provided mentions.", ephemeral=True
-        )
-        return
-
+    
     # Randomly select a member
-    selected_member = random.choice(members_mentions)
+    selected_member = random_user(interaction, mentions)
     random_preparation_sentence = random.choice(ENTICIPATION_SENTENCE_LIST)
     random_selection_sentence = random.choice(SELECTION_SENTENCE_LIST)
 
@@ -98,41 +71,6 @@ async def random_choice_user(
     )
 
     console.print(f"Random user selected: {selected_member}")
-
-def random_user(interaction: discord.Interaction, mentions: str) -> int | None:
-    """
-    Randomly select a user from a list of role mentions and/or user mentions.
-    - Parse mentions to get user IDs
-    - Randomly select one user
-    - Return the selected user's ID
-    """
-    # Validate input
-    if not mentions or not mentions.strip():
-        console.print("No mentions provided", style=warning_style)
-        return None
-
-    # Extract mentions
-    mentions = mentions.split()
-    members_mentions, role_mentions = parse_mentions(
-        mentions, interaction.guild.members
-    )
-
-    # Process role mentions to get user IDs
-    for role_mention in role_mentions:
-        members_in_role = fetch_user_from_role(role_mention, interaction.guild.members)
-        members_mentions += members_in_role
-
-    members_mentions = list(set([int(user_id) for user_id in members_mentions]))
-
-    # Check if any members were selected
-    if not members_mentions:
-        console.print("No members found for the provided mentions", style=warning_style)
-        return None
-
-    # Randomly select a member
-    selected_member = random.choice(members_mentions)
-    console.print(f"Random user selected: {selected_member}")
-    return selected_member
 
 @bot.tree.command(name="poll_decision")
 @app_commands.describe(poll_message_id="ID of the poll message to evaluate")
@@ -332,17 +270,6 @@ async def movie_night(
         channel=voice_channel,
     )
     return True
-
-async def get_account_info(member: discord.Member) -> dict | None:
-    """
-    Simulate fetching account info for a member from a database.
-    """
-    print(f"Fetching account info for member: {member.display_name}")
-    for attribute in dir(member):
-        if not attribute.startswith("_"):
-            print(f" - {attribute}: {getattr(member, attribute)}")
-
-    return member
 
 
 @bot.tree.command(name="ranking_valorant")
