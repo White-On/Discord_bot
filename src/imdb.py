@@ -98,7 +98,7 @@ async def _make_request_with_retry(
 async def search_imdb_titles(query: str):
     """Search for movie titles on IMDB"""
     url = "https://api.imdbapi.dev/search/titles"
-    params = {"query": query}
+    params = {"query": query, "limit": 1}
     return await _make_request_with_retry(url, params)
 
 
@@ -179,7 +179,7 @@ async def test_imdb_api() -> tuple[bool, str | None]:
     successfully and `error_message` contains details on failure when `ok` is False.
     """
     url = "https://api.imdbapi.dev/search/titles"
-    params = {"query": "test"}
+    params = {"query": "test", "limit": 1}
 
     res = await _make_request_with_retry(url, params=params, max_retries=1)
 

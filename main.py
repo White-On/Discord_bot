@@ -206,9 +206,10 @@ async def movie_night(
     if not api_ok:
         console.print(f"IMDB API test failed: {api_error}")
         await interaction.followup.send(
-            f"Warning: IMDB API is not reachable. Movie details will not be fetched. Error: {api_error}",
+            f"Warning: IMDB API is not reachable. Movie details will not be fetched. Error: {api_error} \n You can still vote for the movie night, but the movie details will be missing.",
             ephemeral=True,
         )
+    # TODO:Make the IMDB dependecy optinal + Wikepedia API as fallback - either way not blocking the poll creation
     else:
         img_url_list: list[str] = []
         console.print("IMDB API is reachable")
@@ -257,9 +258,27 @@ async def movie_night(
         f"{poll_link}"
     )
 
-    # Limit to 8 images for the event banner
-    img_url_list = img_url_list[:8]
-    image_bytes = images_urls_to_bytes_horizontal(img_url_list, target_height=300)
+    # Create the image for the event banner
+    if img_url_list and len(img_url_list) > 0:
+        # Limit to 8 images for the event banner
+        console.print(f"Collected {len(img_url_list)} image URLs for the event banner")
+        img_url_list = img_url_list[:8]
+        image_bytes = images_urls_to_bytes_horizontal(img_url_list, target_height=300)
+    # If no images were collected, use a default image
+    else:
+        console.print("No image URLs collected for the event banner")
+        background_image_path = Path("assets") / "ComeFarmWarframe.png"
+        if background_image_path.exists():
+            console.print("Using default background image for the event banner")
+            with open(background_image_path, "rb") as f:
+                image_bytes = f.read()
+        else:
+            console.print(
+                f"Default background image not found at {background_image_path}. No banner will be set for the event.",
+                style=warning_style,
+            )
+            image_bytes = None
+        
 
     await interaction.guild.create_scheduled_event(
         name=interaction.channel.name,
