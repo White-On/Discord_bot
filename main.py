@@ -8,6 +8,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 from discord import app_commands, Poll, EntityType, AllowedMentions
 from discord.utils import sleep_until, utcnow
+from discord.ext.commands import CommandInvokeError
+from discord.errors import HTTPException
 from discord.ext import commands
 from rich.table import Table
 
@@ -20,7 +22,7 @@ from src.constants import (
     MOVIE_NIGHT_CHANNEL_ID,
 )
 from src import *
-from src.imdb import first_result_title_details, prepare_message, test_imdb_api
+from src.imdb import first_result_title_details, prepare_message, test_imdb_api, fetch_info_via_wikipedia
 from src.renderer import render_html, generate_image
 from src.discord_utils import next_wednesday, discord_timestamps, images_urls_to_bytes_horizontal, random_user
 from schemas import LeaderboardPlayer
@@ -203,14 +205,7 @@ async def movie_night(
 
     # Verify IMDB API availability before fetching details
     api_ok, api_error = await test_imdb_api()
-    if not api_ok:
-        console.print(f"IMDB API test failed: {api_error}")
-        await interaction.followup.send(
-            f"Warning: IMDB API is not reachable. Movie details will not be fetched. Error: {api_error} \n You can still vote for the movie night, but the movie details will be missing.",
-            ephemeral=True,
-        )
-    # TODO:Make the IMDB dependecy optinal + Wikepedia API as fallback - either way not blocking the poll creation
-    else:
+    if api_ok:
         img_url_list: list[str] = []
         console.print("IMDB API is reachable")
         with console.status("[cyan]Getting movie infos..."):
@@ -233,6 +228,35 @@ async def movie_night(
                 # Collect image URL
                 if movie_info.image_url:
                     img_url_list.append(movie_info.image_url)
+    else:
+        console.print(f"IMDB API test failed: {api_error}")
+        await interaction.followup.send(
+            f"Warning: IMDB API is not reachable. Movie details will not be fetched. Error: {api_error} \n You can still vote for the movie night, but the movie details will be missing.",
+            ephemeral=True,
+        )
+    if not api_ok:
+        # If the IMDB API is not reachable, try to fetch info via Wikipedia
+        console.print("IMDB API is not reachable, trying to fetch info via Wikipedia")
+        for movie_title in list_movies:
+            console.print(f"[cyan]→[/cyan] Getting info for movie: {movie_title} via Wikipedia")
+            movie_info = fetch_info_via_wikipedia(movie_title)
+
+            if not movie_info or "error" in movie_info:
+                error_message = movie_info.get('error', 'Unknown error') if movie_info else 'Unknown error'
+                console.print(
+                    f"Error retrieving movie info for '{movie_title}' via Wikipedia: {error_message}",
+                    style=warning_style,
+                )
+                continue
+
+            message, embed = prepare_message(movie_info)
+            if message and embed:
+                await interaction.followup.send(embed=embed, ephemeral=False)
+
+            # Collect image URL
+            if movie_info.image_url:
+                img_url_list.append(movie_info.image_url)
+    
 
     reminder_message = (
         f"## Hey <@&{MOVIE_NIGHT_ROLE_ID}> ! Don't forget to vote for the movie night!\n"
@@ -279,23 +303,28 @@ async def movie_night(
             )
             image_bytes = None
         
-
-    await interaction.guild.create_scheduled_event(
-        name=interaction.channel.name,
-        description=description,
-        start_time=next_wednesday().astimezone(PARIS_TZ) + timedelta(hours=1),
-        end_time=next_wednesday().astimezone(PARIS_TZ) + timedelta(hours=3),
-        privacy_level=discord.PrivacyLevel.guild_only,
-        entity_type=EntityType.voice,
-        image=image_bytes,
-        channel=voice_channel,
-    )
+    try:
+        await interaction.guild.create_scheduled_event(
+            name=interaction.channel.name,
+            description=description,
+            start_time=next_wednesday().astimezone(PARIS_TZ) + timedelta(hours=1),
+            end_time=next_wednesday().astimezone(PARIS_TZ) + timedelta(hours=3),
+            privacy_level=discord.PrivacyLevel.guild_only,
+            entity_type=EntityType.voice,
+            image=image_bytes,
+            channel=voice_channel,
+        )
+    except (CommandInvokeError, HTTPException) as e:
+        console.print(f"Error creating scheduled event: {e}")
 
     # Send a messsage in the movie night channel to announce the creation of the event
     movie_night_channel = bot.get_channel(MOVIE_NIGHT_CHANNEL_ID)
-    event_link = f"https://discord.com/events/{interaction.guild.id}/{interaction.guild.scheduled_events[-1].id}"
-    if movie_night_channel:
-        await movie_night_channel.send(f"An you can find the event here: {event_link}")
+    event_link = f"https://discord.com/events/{interaction.guild.id}/{interaction.guild.scheduled_events[-1].id}" if interaction.guild.scheduled_events else None
+    if movie_night_channel and event_link:
+        try:
+            await movie_night_channel.send(f"An you can find the event here: {event_link}")
+        except (CommandInvokeError, HTTPException) as e:
+            console.print(f"Error sending event announcement: {e}")
 
     return True
 
