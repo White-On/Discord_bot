@@ -98,7 +98,7 @@ async def _make_request_with_retry(
 async def search_imdb_titles(query: str):
     """Search for movie titles on IMDB"""
     url = "https://api.imdbapi.dev/search/titles"
-    params = {"query": query}
+    params = {"query": query, "limit": 1}
     return await _make_request_with_retry(url, params)
 
 
@@ -148,7 +148,7 @@ def prepare_message(movie: Movie):
 
     rating = movie.rating
 
-    message += f"Rating: **{rating}** (IMDB rating, >7 is usually good)\n"
+    message += f"Rating: **{rating}** (IMDB rating, >7 is usually good)\n" if rating != "N/A" else "Rating: N/A\n"
     message += f"Genres: {', '.join(genres) if genres else 'N/A'}\n"
 
     # calculate the color based on rating
@@ -179,7 +179,7 @@ async def test_imdb_api() -> tuple[bool, str | None]:
     successfully and `error_message` contains details on failure when `ok` is False.
     """
     url = "https://api.imdbapi.dev/search/titles"
-    params = {"query": "test"}
+    params = {"query": "test", "limit": 1}
 
     res = await _make_request_with_retry(url, params=params, max_retries=1)
 
@@ -190,3 +190,30 @@ async def test_imdb_api() -> tuple[bool, str | None]:
 
     console.print("[green]✓ IMDB API reachable[/green]")
     return True, None
+
+def fetch_info_via_wikipedia(movie_title: str) -> Movie | None:
+    """Fetch movie information from Wikipedia as a fallback."""
+    import wikipediaapi
+
+    wiki = wikipediaapi.Wikipedia(user_agent='MovieNightBot', language='en')
+    page = wiki.page(movie_title)
+
+    if not page.exists():
+        console.print(f"[red]Wikipedia page not found for: {movie_title}[/red]")
+        return None
+    
+    # Extract information from the Wikipedia page
+    plot = page.summary if page.summary else "N/A"
+    genres = []  # Wikipedia may not have structured genre info; this can be improved with
+    # additional parsing or using infoboxes if available.
+
+    image_url = page.images[0].url if page.images else ""
+
+    return Movie(
+        id=page.title,
+        primaryTitle=page.title,
+        genres=genres,
+        plot=plot,
+        image_url=image_url,
+        rating="N/A"  # Wikipedia does not provide ratings
+    )
